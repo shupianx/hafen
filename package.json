@@ -1,0 +1,36 @@
+{
+  "name": "hafen",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "workspaces": [
+    "apps/mobile",
+    "packages/domain"
+  ],
+  "scripts": {
+    "core:bootstrap": "node scripts/core.mjs bootstrap",
+    "core:test": "node scripts/core.mjs test",
+    "core:android": "node scripts/core.mjs android",
+    "core:ios": "node scripts/core.mjs ios",
+    "core:android:all": "node scripts/core.mjs android --arch=all",
+    "core:ios:all": "node scripts/core.mjs ios --arch=all",
+    "test:build": "node --test scripts/test/*.test.mjs",
+    "clean:build": "node scripts/clean-build.mjs",
+    "test": "node --experimental-strip-types --test packages/domain/test/*.test.ts",
+    "typecheck": "npm run typecheck --workspace @hafen/mobile",
+    "lint": "npm run lint --workspace @hafen/mobile",
+    "start": "npm run start --workspace @hafen/mobile",
+    "android": "npm run android --workspace @hafen/mobile --",
+    "android:preview": "npm run android:preview --workspace @hafen/mobile --",
+    "android:preview:all": "node scripts/mobile.mjs android-preview --arch=all",
+    "ios": "npm run ios --workspace @hafen/mobile --",
+    "core:smoke": "node scripts/core-smoke.mjs",
+    "vpn:smoke": "node scripts/vpn-smoke.mjs",
+    "subscription:smoke": "node scripts/subscription-smoke.mjs",
+    "ios:archive": "node scripts/ios-testflight.mjs archive",
+    "ios:upload": "node scripts/ios-testflight.mjs upload"
+  },
+  "engines": {
+    "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "sing-box",
+  "module": "github.com/sagernet/sing-box",
+  "version": "v1.14.4",
+  "commit": "c005f35300ce76427dc285481ec5695f5b179cd2",
+  "sum": "h1:KV6J8v1zMUu7BZA93nD9HGMmQnNC46VTuYaKEHkP+gA=",
+  "goModSum": "h1:hez15ThcG5PcR3tmuHZYDH46LTO9WGj53UzrCQ39744=",
+  "repository": "https://github.com/SagerNet/sing-box",
+  "license": "GPL-3.0-or-later",
+  "goVersion": "go1.26.1",
+  "gomobileVersion": "v0.1.12"
+}
