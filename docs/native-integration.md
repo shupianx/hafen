@@ -8,6 +8,8 @@ Android 已通过模拟器真实流量测试；iOS TestFlight 构建 8 已由用
 Codegen 定义位于 `apps/mobile/specs/NativeHafenPlatform.ts`。Android 使用 Kotlin，iOS 桥接使用
 Objective-C++（宿主仍为 Swift）。`packages/domain/src/platform.ts` 校验返回值并统一错误信息。
 
+iOS 主程序通过 `HafenCoreBridge` 链接 HafenHost，扩展独立链接 HafenCore。宿主仍执行真实节点构造校验和 SS 回环自检，但不包含 TUN/gVisor 或 VPN 会话入口；连接与分阶段诊断继续由扩展承担。两者使用同一份解析和配置源码，分别记录产物校验值。
+
 | 方法 | 当前行为 |
 | --- | --- |
 | getEnvironment | 返回平台、桥接版本、实际链接的 sing-box 版本及授权状态；内核加载与隧道可用性分别报告 |
@@ -101,3 +103,22 @@ Android 文件位于 `noBackupFilesDir`，使用 Keystore AES-256-GCM 与 Atomic
 
 两端共用 Go 解析和下载器；存储操作串行，停止命令可取消排队的连接请求。当前更新不热切换运行中的隧道。
 详见 [订阅说明](subscriptions.md)。
+
+### 节点选择与系统重连
+
+`selectSubscriptionNode(id, revision, nodeId)` 校验原生订阅版本后持久化选择，
+`getSelectedNode()` 仅返回订阅 ID、节点 ID、版本和显示名称。JS 不存储节点密码。
+iOS 将选择元数据和系统开关下次启动的 profile 原子写入同一共享 Keychain 项；
+Android 将选择写入现有 Keystore 加密订阅文件。打开其他订阅不清除当前选择。
+更新订阅保留仍存在的节点 ID 并更新版本；节点消失或订阅被删除时清除选择。
+
+`getVpnState().connectionName` 表示当前会话实际使用的名称，而非下次选择。
+iOS 扩展在启动时固定配置和名称，通过 `selection` provider message 返回名称；
+宿主检查 session、连接时间和请求版本，避免旧响应覆盖新会话。Android 从运行中
+service 返回启动时的名称。旧版 iOS 记录缺少身份时不按名称猜测节点；升级后重新选择一次。
+
+连接期间点选节点由共享 `selectAndSwitchNode` 流程执行：校验并保存选择，停止旧隧道，
+等原生确认 disconnected 后启动新节点，并等原生确认 connected 才结束切换状态。
+未连接时点选仍只保存。切换期间串行处理点击，普通状态轮询让位给切换流程；
+原生状态通知仍优先。关闭总开关会取消待执行的启动。停止/启动等待有超时，失败
+显示错误，不把已保存选择冒充已连接，也不静默回退到旧节点。切换属于重连，会短暂中断流量。

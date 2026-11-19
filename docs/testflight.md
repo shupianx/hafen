@@ -1,10 +1,12 @@
 # TestFlight 内部测试
 
-当前测试版本：`0.1.0 (8)`。宿主标识 `com.coolab.hafen`，扩展标识 `com.coolab.hafen.PacketTunnel`。
+已验证可连接的测试版本：`0.1.0 (8)`；体积优化构建为 `0.1.0 (9)`。宿主标识 `com.coolab.hafen`，扩展标识 `com.coolab.hafen.PacketTunnel`。
 目标为开发者本人通过 TestFlight 测试；上传选项为 Internal Only，不提交外部测试或 App Store 上架。
 
-2026-11-16 构建 1–8 均已上传成功，Apple 在上传结束时返回 processing。后续新包使用 `9` 或更大的构建号。
-构建 8 修复生产核心继承空网卡监视器、被标记为 networkPaused 的缺陷；iOS 在安装 VPN 路由前使用系统 DNS 解析节点，解析结果只存于本次会话，业务 DNS 仍经代理。新增内核网络状态和脱敏启动失败原因，并配置 Go 软内存预算。同一节点在本地 iOS 原生测试中 HTTPS 成功、networkPaused=false，但真机完整 VPN 转发仍待确认。Apple 处理完成后，更新构建 8，先断开再重连同一节点，运行「检查连接」并记录完整结果；正常应显示「内核网络：可用」。网络切换仍需手动重连。
+2026-11-18 构建 9 已上传成功，Xcode 返回 `Uploaded Hafen` / `EXPORT SUCCEEDED`。等待 Apple 处理后再安装测试；尚未完成构建 9 的用户真机回归。未压缩归档 App 从 70.27 MiB 降至 66.01 MiB，下载大小以 Apple 报告为准。
+
+2026-11-16 构建 1–8 均已上传成功，用户随后确认构建 8 可以接通。构建 9 拆分主程序/扩展绑定，并恢复 Hermes 的 Release 依赖选择；需要再次测试订阅、节点连接、系统开关和「检查连接」。后续新归档使用 `10` 或更大的构建号。
+构建 8 修复生产核心的默认网卡监视器与网络暂停状态；iOS 在安装 VPN 路由前使用系统 DNS 解析节点，解析结果只存于本次会话，业务 DNS 仍经代理。该版随后由用户确认真机可以接通。构建 9 不改变这些网络策略；网络切换仍需手动重连。
 用户此前确认构建 6 仍连接失败，Shadowrocket 同节点正常。构建 7 增加分阶段诊断；尚未取得用户手机的构建 7 分阶段结果，未把 DNS 依赖认定为已确认的手机故障根因。
 构建 4 修复诊断 boolean JSON、增加系统 VPN 状态事件及共享 Keychain 节点恢复；构建 5 进一步让拨片在 disconnecting 时立即关闭，该修正已包含在构建 6。更新后先从 App 连接一次以保存节点，再测试系统开关关/开及「检查连接」。VPN 实际转发故障尚待真机有效检测结果。
 构建 3 补全 iOS 全流量路由和旧配置迁移，修复包读取异常的关闭处理，新增「检查连接」。尚未确认用户真机 VPN 故障已解决；更新后断开重连，再记录节点 HTTPS、系统 HTTPS 和包计数结果。
@@ -23,13 +25,14 @@
 export HAFEN_TEAM_ID=837CU37KL9
 export HAFEN_BUNDLE_ID=com.coolab.hafen
 export HAFEN_VERSION=0.1.0
-export HAFEN_BUILD_NUMBER=9
+export HAFEN_BUILD_NUMBER=12
 npm run ios:archive
 npm run ios:upload
 ```
 
 `ios:archive` 构建签名的真机 Release 归档，包含 JS 和 Packet Tunnel 扩展，不依赖 Metro。
-上例输出为 `build/ios/Hafen-9.xcarchive`，已上传的构建 1–8 归档均保留在 `build/ios/`。脚本拒绝覆盖已有归档；后续上传应增加构建号。
+上例输出为 `build/ios/Hafen-12.xcarchive`，此前归档保留在 `build/ios/`。脚本拒绝覆盖已有归档；后续上传应增加构建号。
+脚本会生成 HafenCore 与 HafenHost 两套框架，并检查 Hermes 配置切换脚本。若旧本地 Debug tarball 来源仍被 CocoaPods 缓存，应移除 `HERMES_ENGINE_TARBALL_PATH` 后运行 `bundle exec pod update hermes-engine --no-repo-update`，不能用调试依赖代替发行依赖。
 `ios:upload` 先核对宿主/扩展标识、版本、JS 包和签名，再使用 Xcode 登录态上传到 App Store Connect。
 Xcode 可以自动管理描述文件与分发签名，但账号权限、协议、证书服务或认证过期仍可能需要账号持有人在 Xcode 中处理。
 不需要在代码仓库中保存账号密码、私钥或 App Store Connect API 密钥。
@@ -51,12 +54,12 @@ App Store Connect 需要与 `com.coolab.hafen` 对应的 App 记录。若尚无�
 
 ## 建议测试内容
 
-1. 首次打开正常显示拨片开关，左上角 ＋ 可添加订阅，卡片顶部下滑可关闭。
-2. 更新订阅、选择节点、允许系统 VPN 配置，开关与系统 VPN 状态一致。
+1. 首次打开正常显示拨片开关，点击「订阅」右侧的 ＋ 可添加订阅，卡片顶部下滑可关闭。
+2. 更新订阅、选择节点、允许系统 VPN 配置，开关与系统 VPN 状态一致；连接 A 时点 B 自动重连到 B，切换中关闭开关应保持断开。
 3. 检查网页/DNS、前后台切换、锁屏、Wi-Fi/蜂窝切换，以及断开后的网络恢复。
 4. 若失败，记录机型、iOS 版本、协议、复现步骤和屏幕上的错误；反馈中不要粘贴订阅令牌或节点密码。
 
-此前 iOS 已验证模拟器下载、解析、存储与编译，实际 VPN 转发仍需本次真机测试。
+构建 8 用户已确认真机可以接通；构建 11 包含此前体积优化、节点选择持久化与连接中点选切换。升级后先断开并重新点选一次节点，再关闭 App、从系统 VPN 开关连接，回 App 核对实际节点名称和转发。
 
 参考：[上传构建](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/)、
 [内部测试](https://developer.apple.com/help/app-store-connect/test-a-beta-version/add-internal-testers/)、

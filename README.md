@@ -74,6 +74,7 @@ npm start
 另开终端，配置好 Android SDK / JDK 后运行 `npm run android`。
 iOS 需安装 Ruby 3.2+，先在 `apps/mobile` 执行 `bundle install`，然后在其 `ios` 子目录执行 `bundle exec pod install`，
 再回到仓库根目录执行 `npm run ios`。签名和真机 VPN 测试另见原生接入文档。
+iOS 会分别生成主程序使用的 HafenHost 与 VPN 扩展使用的 HafenCore，保留配置校验和自检能力，避免主程序携带数据包引擎。
 
 生成无需 Metro 的 Android 开发预览包：
 

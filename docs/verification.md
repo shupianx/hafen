@@ -424,3 +424,88 @@ Android 真机、真实订阅出口验证与长时间运行仍待用户测试。
 最终 APK 经 apksigner 签名校验和 zipalign 对齐校验通过；manifest 为非 debuggable，仅 arm64-v8a。Android API 37 模拟器覆盖安装成功，无 Metro 端口映射时冷启动正常，添加订阅卡片打开及下滑关闭正常。
 
 直接在最终优化包的界面填写本机临时 SS 测试节点，实际系统 VPN 的 TCP / UDP 回显均返回完全相同的 23 字节，代理 DNS 返回 rcode=0、2 条回答；退后台重复上述测试仍通过。应用开关断开后无 Hafen VPN 服务残留。临时服务器已停止，参数与设备 UI 临时文件已清理，重启清除了手动输入。本轮最终包测的是 SS；此前的 VLESS 测试记录仍保留，内核二进制一致不替代所有协议的真机验收。
+
+## 2026-11-18 iOS 主程序体积优化（构建 9）
+
+主程序改为链接独立的 HafenHost，VPN 扩展继续链接 HafenCore。宿主绑定只导出原有七个服务接口，使用 `hafen_host,with_utls,with_quic` 编译，不包含 PacketSession、系统 TUN 或 gVisor；构建脚本检查依赖图，发现数据包引擎依赖时拒绝生成宿主库。订阅、配置构造、协议注册和 SS 加密回环仍复用原有实现，未把真实校验降为 JSON 校验，也未删除支持的协议。宿主仍需要出站协议和 Go 运行时，因此本次没有消除所有重复代码。
+
+两套框架分别记录源码、构建标签、绑定包、架构和产物哈希。iOS 开发及归档入口会生成两套框架，CocoaPods 只向主程序链接 HafenHost，扩展只链接 HafenCore；Android 继续使用完整 mobile 绑定。
+
+额外发现已安装的 Hermes podspec 仍缓存此前本地 Debug tarball 来源，没有配置切换脚本。常规 pod install 未刷新该来源，定向 `pod update hermes-engine --no-repo-update` 恢复锁定版本的官方脚本；最终 Release 日志确认替换成功。归档入口新增检查，缺少 Hermes 配置切换脚本时拒绝归档。未改动 node_modules 或上游协议实现。
+
+同口径比较签名归档内 `.app` 的未压缩大小（MiB），不是 TestFlight 下载大小：
+
+| 内容 | 构建 8 | 构建 9 |
+| --- | ---: | ---: |
+| 主程序可执行文件 | 25.13 | 21.78 |
+| VPN 扩展可执行文件 | 22.64 | 22.64 |
+| Hermes | 7.05 | 6.13 |
+| React | 11.45 | 11.45 |
+| 整个 App | 70.27 | 66.01 |
+
+合计减少约 4.26 MiB（6.07%）。最终归档为 `build/ios/Hafen-9.xcarchive`；构建 8 和首次未刷新 Hermes 的中间归档均保留。主程序和扩展均为 0.1.0 / 9，签名验证通过。下载与安装大小仍应以 Apple 处理后的报告为准。
+
+验证：完整 mobile race 测试通过（51.093 秒），精简标签下的 host race 测试通过（1.697 秒），覆盖四种协议构造、订阅筛选与选择、凭据脱敏、过期版本拒绝和真实 SS 回环；16 项领域测试、TypeScript、ESLint 及 8 项构建脚本测试通过。
+
+独立 iOS 27 arm64 模拟器 App 直接编译生产 HafenCoreBridge.m 并链接 HafenHost：核心 ready、VLESS 订阅导入/选择/校验、摘要脱敏、非法配置拒绝、真实加密回环全部通过。宿主绑定头文件包含七个预期 API，且没有 PacketSession。此测试不能代替真机系统 VPN 转发验收；用户确认构建 8 可用，仍需更新构建 9 后复测。
+
+完整 React Native Release 模拟器 App 编译并启动通过，Hermes Release 能正常渲染界面，订阅列表完成初始化。测试使用独立 Bundle ID `com.coolab.hafen.sizecheck`；Release 模拟器显式指定 arm64 以匹配本次框架切片。首次无签名启动出现 Keychain 权限错误，随后由 Xcode 使用开发团队生成正确的模拟器签名/权限，重新安装后错误消失；没有通过修改存储实现或跳过权限来规避。真机归档未受这些模拟器测试签名操作影响。
+
+构建 9 已上传 TestFlight Internal Only，Xcode 返回 `Uploaded Hafen` / `EXPORT SUCCEEDED`。仍有第三方 React / ReactNativeDependencies / Hermes 预编译框架缺少 dSYM 的警告，与此前性质相同，影响相关崩溃符号解析；上传成功。Apple 处理完成状态和用户真机回归尚未确认。两个隔离模拟器 App 已卸载。
+
+## 2026-11-18 节点选择持久化（构建 10）
+
+修复 UI 只在内存中保存勾选、iOS 系统开关仍使用上次连接 profile 的错位。
+新增原生选择/读取接口，iOS 点选时将节点身份与重连 profile 原子保存到同一个
+共享 Keychain 项；Android 使用现有加密 vault 保存选择。冷启动恢复订阅与节点，
+浏览其他订阅不改变选择。更新订阅时同步版本；节点消失或订阅删除时清除旧选择。
+当前连接名称独立于选择：iOS 从扩展启动时固定的快照读取，Android 从 service 读取。
+旧版缺少身份的记录不猜测匹配，需要升级后重新选择一次节点。
+
+验证结果：
+
+- 17 项领域测试、TypeScript、ESLint 通过；Android Kotlin/Codegen 编译通过。
+- iOS 原生 Keychain 写入、进程退出、重新读取选择与 profile、按订阅删除通过。
+- 直接编译生产 TunnelController 的测试通过：系统开关状态通知、实际节点名称读取与变更、错误脱敏、重新加载已删除配置。
+- 完整 iOS Debug 模拟器 App 使用独立 Bundle ID；真实原生桥接通过点选立即保存、删除其他订阅不影响选择、稳定节点更新版本、拒绝过期选择请求、冷启动恢复、移除节点与删除订阅清理测试。
+- 冷启动截图确认已保存订阅自动展开、Selected B 保持勾选。最初已有 Metro 缓存的 Worklets 初始化失败，独立端口 8094 重建缓存后正常；未修改产品代码绕过该问题。
+- 真机 Release 签名归档 `build/ios/Hafen-10.xcarchive` 成功，宿主和扩展版本均为 0.1.0 (10)，签名校验通过。未压缩 App 约 66.03 MiB，保持此前体积优化。
+
+本轮不改 sing-box 协议、路由或数据包处理。模拟器不能验证真实 Network Extension
+系统开关重连；仍需在 iPhone 更新后重新选节点、关闭 App、从系统 VPN 开启，再回 App
+核对实际节点和转发。测试数据均为合成配置；隔离测试 App 已卸载。
+
+构建 10 已成功上传 TestFlight Internal Only，Xcode 返回 `Upload succeeded`、
+`Uploaded Hafen` 和 `EXPORT SUCCEEDED`；Apple 后续处理及真机回归尚未确认。
+与构建 9 相同，第三方 React / ReactNativeDependencies / Hermes 缺少 dSYM 的警告
+不阻止上传，但相关第三方崩溃符号解析仍受限。
+
+## 2026-11-18 连接中点选切换节点（构建 11）
+
+节点列表在 connected 状态允许点选。共享 JS 流程先校验并持久化 B，再停止 A，
+等原生确认 disconnected 后启动 B，并等 connected 才结束“切换中…”状态。
+切换时总开关保持可关闭；关闭会取消排队重连。失败或超时不会伪报成功，也不自动回退 A。
+未连接时仍只保存选择。没有修改协议、路由、原生桥接或凭据存储格式。
+
+验证：24 项领域测试、TypeScript、ESLint 通过。新增测试覆盖两种点选语义、iOS 异步
+停止与启动状态、保存失败不打断 A、系统在保存期间停止、用户取消、停止超时、启动失败
+及超时后的清理。Android Debug 完整构建与 iOS Release 签名归档通过。
+
+Android API 37 模拟器使用两个不同端口（29391 / 29393）的本机 SS 测试节点。通过
+真实界面在连接 A 时点击 B，原生状态随后为 connected、connectionName=Switch B，
+界面 B 勾选且顶部显示 B。确认 B 已连接后 TCP / UDP 各精确回显 23 字节，代理 DNS
+返回 rcode=0、2 条回答。首次流量检查发起于 disconnecting 间隙，TCP/UDP 未返回；
+等待系统确认 connected 后重测通过，符合重连中断语义。
+
+再点击 A 并立即关闭总开关，两次随后读取均为 disconnected、无错误、无运行中
+数据包会话，未发生延迟重连。合成订阅已删除，测试前选择已恢复，临时 adb 映射已移除。
+复现时先启动 `TestTunnelFixture`，设置 `HAFEN_TEST_SWITCH=1`、`HAFEN_TEST_PROFILE`，
+执行 `scripts/subscription-smoke.mjs connect`，再在 UI 中点击 B，待连接后运行
+`scripts/android-packet-smoke.py`；最后执行 subscription smoke 的 disconnect 清理。
+
+iOS 归档为 `build/ios/Hafen-11.xcarchive`。当前功能共用相同 JS 流程，但 iOS
+Network Extension 的真实节点切换仍需 TestFlight 真机回归。
+
+构建 11 上传成功，Xcode 返回 `Uploaded Hafen` / `EXPORT SUCCEEDED`，Apple 后续
+处理状态尚未确认。第三方预编译框架缺少 dSYM 的警告与前两版相同。
+本轮测试服务已停止，合成凭据文件已自动删除；双端点 fixture 正常退出并通过。
