@@ -45,6 +45,8 @@ export async function hashTree(filename, base = path.dirname(filename)) {
 
 export async function bindingSources(core) {
   const files = await hashTree(path.join(core, 'mobile'), core);
+  try { Object.assign(files, await hashTree(path.join(core, 'host'), core)); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   for (const name of Object.keys(files)) if (name.endsWith('_test.go')) delete files[name];
   for (const name of ['go.mod', 'go.sum']) files[name] = await hashFile(path.join(core, name));
   return files;

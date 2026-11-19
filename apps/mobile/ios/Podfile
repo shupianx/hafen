@@ -18,7 +18,10 @@ target 'Hafen' do
   unless File.directory?(File.expand_path('../../../core/artifacts/ios/HafenCore.xcframework', __dir__))
     raise 'Missing Hafen core. Run npm run core:bootstrap and npm run core:ios from the repository root.'
   end
-  pod 'HafenCore', :path => '../../../core'
+  unless File.directory?(File.expand_path('../../../core/artifacts/ios-host/HafenHost.xcframework', __dir__))
+    raise 'Missing Hafen host. Run npm run core:ios:host from the repository root.'
+  end
+  pod 'HafenHost', :path => '../../../core'
   config = use_native_modules!
 
   use_react_native!(

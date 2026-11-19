@@ -12,6 +12,7 @@ PODS:
   - glog (0.3.5):
     - ReactNativeDependencies
   - HafenCore (0.1.0)
+  - HafenHost (0.1.0)
   - hermes-engine (260318099.0.5):
     - hermes-engine/Pre-built (= 260318099.0.5)
   - hermes-engine/Pre-built (260318099.0.5)
@@ -2028,6 +2029,7 @@ DEPENDENCIES:
   - fmt (from `build/rndeps-facades/fmt`)
   - glog (from `build/rndeps-facades/glog`)
   - HafenCore (from `../../../core`)
+  - HafenHost (from `../../../core`)
   - hermes-engine (from `../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCT-Folly (from `build/rndeps-facades/RCT-Folly`)
   - RCTDeprecation (from `build/rncore-facades/RCTDeprecation`)
@@ -2128,6 +2130,8 @@ EXTERNAL SOURCES:
   glog:
     :path: build/rndeps-facades/glog
   HafenCore:
+    :path: "../../../core"
+  HafenHost:
     :path: "../../../core"
   hermes-engine:
     :podspec: "../../../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
@@ -2307,7 +2311,8 @@ SPEC CHECKSUMS:
   fmt: ba0886e864ebb21d14c98b2e12e164b8002f5b93
   glog: 3cf7cb46f743c4bc758ae3e6d9c15bd1b4cfd6d4
   HafenCore: 17a1e266bbc0c2f406e60dea330778f6bd9c3ddc
-  hermes-engine: dd9acb81009c6846b625b3e1880f60a12fbce842
+  HafenHost: 44e3e1bcc8388a968f70b76b6308c9da49c680bb
+  hermes-engine: d7455f8ac403d445fb7d8b29ce61b0217de643ba
   RCT-Folly: 82921e585c0400eda46fac1068297aa9dfb035e4
   RCTDeprecation: c62b9b3fbf0d26b76755f3ebd1c913a4fb469dde
   RCTRequired: d0563e2484633b657976195f0543e180133afd3a
@@ -2392,6 +2397,6 @@ SPEC CHECKSUMS:
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
-PODFILE CHECKSUM: 36cdb03119a7cbefa7fccc4a375d230316912bc0
+PODFILE CHECKSUM: 99b4893be67603cd17d3d4b53da92f01f7dd970b
 
 COCOAPODS: 1.17.0

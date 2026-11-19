@@ -24,8 +24,8 @@ const env = {
   PATH: `${bin}${path.delimiter}${process.env.PATH}`,
 };
 const mode = process.argv[2];
-if (!["bootstrap", "test", "android", "ios"].includes(mode)) {
-  throw new Error("Usage: node scripts/core.mjs bootstrap|test|android|ios");
+if (!["bootstrap", "test", "android", "ios", "ios-host"].includes(mode)) {
+  throw new Error("Usage: node scripts/core.mjs bootstrap|test|android|ios|ios-host");
 }
 const options = process.argv.slice(3);
 for (const option of options) {
@@ -33,10 +33,12 @@ for (const option of options) {
     throw new Error(`Unknown core option: ${option}`);
   }
 }
-if (options.length && !["android", "ios"].includes(mode)) throw new Error("Build options require android or ios");
+if (options.length && !["android", "ios", "ios-host"].includes(mode)) throw new Error("Build options require android or ios");
 if (options.includes("--check") && (options.includes("--force") || options.includes("--adopt-legacy"))) {
   throw new Error("--check is read-only; do not combine it with --force or --adopt-legacy");
 }
+const platform = mode === "ios-host" ? "ios" : mode;
+const bindingPackage = mode === "ios-host" ? "./host" : "./mobile";
 const arch = options.find(value => value.startsWith("--arch="))?.slice(7) || process.env.HAFEN_CORE_ARCH || process.arch;
 
 function run(command, args, capture = false) {
@@ -70,13 +72,14 @@ let sources;
 let outputDir;
 let artifact;
 let manifestPath;
-if (["android", "ios"].includes(mode)) {
+if (["android", "ios", "ios-host"].includes(mode)) {
   outputDir = path.join(core, "artifacts", mode);
-  artifact = path.join(outputDir, mode === "android" ? "hafen.aar" : "HafenCore.xcframework");
+  artifact = path.join(outputDir, mode === "android" ? "hafen.aar" : mode === "ios-host" ? "HafenHost.xcframework" : "HafenCore.xcframework");
   manifestPath = path.join(outputDir, "manifest.json");
   sources = await bindingSources(core);
   const recipe = {
-    tags: "with_gvisor,with_utls,with_quic",
+    tags: mode === "ios-host" ? "hafen_host,with_utls,with_quic" : "with_gvisor,with_utls,with_quic",
+    bindingPackage,
     ldflags: `-s -w -checklinkname=0 -X github.com/sagernet/sing-box/constant.Version=${lock.version.slice(1)}`,
     trimpath: true,
     platformArgs: mode === "android" ? ["-androidapi=24", "-javapkg=com.hafen.core", "-libname=hafen"] : ["-iosversion=15.1"],
@@ -90,7 +93,7 @@ if (["android", "ios"].includes(mode)) {
       "core-cache.mjs": await hashFile(path.join(root, "scripts/core-cache.mjs")),
     },
   };
-  build = { recipe, targets: buildTargets(mode, arch) };
+  build = { recipe, targets: buildTargets(platform, arch) };
   let manifest;
   let files = {};
   try {
@@ -119,7 +122,7 @@ if (["android", "ios"].includes(mode)) {
       targets = info.AvailableLibraries.flatMap(library => library.SupportedArchitectures.map(cpu =>
         `${library.SupportedPlatformVariant === "simulator" ? "iossimulator" : "ios"}/${cpu === "x86_64" ? "amd64" : cpu}`));
     }
-    if (!buildTargets(mode, "all").every(target => targets.includes(target))) throw new Error("Legacy artifact does not contain the original architectures");
+    if (!buildTargets(platform, "all").every(target => targets.includes(target))) throw new Error("Legacy artifact does not contain the original architectures");
     manifest.build = { recipe, targets, adoptedLegacy: true };
     const failure = reuseFailure(manifest, { platform: mode, upstream: lock, bindingSources: sources, files, ...build });
     if (failure) throw new Error(`Cannot adopt legacy artifact: ${failure}`);
@@ -189,6 +192,7 @@ if (mode === "bootstrap") {
     "-ldflags=-checklinkname=0",
     "./mobile",
   ]);
+  await run("go", ["test", "-mod=readonly", "-race", "-tags=hafen_host,with_utls,with_quic", "-ldflags=-checklinkname=0", "./host"]);
 } else {
   for (const tool of ["gomobile", "gobind"]) {
     const info = await run("go", ["version", "-m", path.join(bin, tool)], true);
@@ -198,6 +202,12 @@ if (mode === "bootstrap") {
       throw new Error(
         "Run npm run core:bootstrap with the pinned toolchain first."
       );
+    }
+  }
+  if (mode === "ios-host") {
+    const dependencies = await run("go", ["list", `-tags=${build.recipe.tags}`, "-deps", bindingPackage], true);
+    if (dependencies.split("\n").some(name => name.includes("gvisor") || name === "github.com/sagernet/sing-box/protocol/tun")) {
+      throw new Error("The iOS host must not link the packet engine");
     }
   }
   await mkdir(outputDir, { recursive: true });
@@ -225,7 +235,7 @@ if (mode === "bootstrap") {
   ];
   args.push(`-target=${build.targets.join(",")}`, ...build.recipe.platformArgs);
   try {
-    await run(path.join(bin, "gomobile"), [...args, "./mobile"]);
+    await run(path.join(bin, "gomobile"), [...args, bindingPackage]);
     if (!isDeepStrictEqual(sources, await bindingSources(core))) throw new Error("Core sources changed during compilation; retaining previous artifact");
     const files = await hashTree(stagedArtifact, staging);
     const temporaryManifest = path.join(staging, "manifest.json");

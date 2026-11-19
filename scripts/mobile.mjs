@@ -21,13 +21,16 @@ function run(command, args, cwd = mobile) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 const infoFile = path.join(root, 'core/artifacts/ios/HafenCore.xcframework/Info.plist');
+const hostInfoFile = path.join(root, 'core/artifacts/ios-host/HafenHost.xcframework/Info.plist');
+const hostBefore = platform === 'ios' ? await readFile(hostInfoFile).catch(e => { if (e.code !== 'ENOENT') throw e; return null; }) : null;
 const before = platform === 'ios' ? await readFile(infoFile).catch(e => { if (e.code !== 'ENOENT') throw e; return null; }) : null;
 run(process.execPath, [path.join(root, 'scripts/core.mjs'), platform, `--arch=${arch === 'x64' ? 'amd64' : arch}`], root);
+if (platform === 'ios') run(process.execPath, [path.join(root, 'scripts/core.mjs'), 'ios-host', `--arch=${arch === 'x64' ? 'amd64' : arch}`], root);
 if (platform === 'ios' && !dryRun) {
   const after = await readFile(infoFile);
   // CocoaPods generates slice-specific copy scripts. Refresh them when the
   // XCFramework's architecture layout changes, not on a normal cache hit.
-  if (!before?.equals(after)) run('bundle', ['exec', 'pod', 'install'], path.join(mobile, 'ios'));
+  if (!before?.equals(after) || !hostBefore?.equals(await readFile(hostInfoFile)) || !(await readFile(path.join(mobile, 'ios/Pods/Manifest.lock'), 'utf8').catch(() => '')).includes('HafenHost')) run('bundle', ['exec', 'pod', 'install'], path.join(mobile, 'ios'));
 }
 const abi = targets.map(target => target.endsWith('/arm64') ? 'arm64-v8a' : 'x86_64').join(',');
 if (mode === 'android-preview') {

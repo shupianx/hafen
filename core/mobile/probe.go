@@ -1,3 +1,5 @@
+//go:build !hafen_host
+
 package mobile
 
 import (

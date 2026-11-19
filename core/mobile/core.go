@@ -26,7 +26,6 @@ import (
 	"github.com/sagernet/sing-box/protocol/direct"
 	"github.com/sagernet/sing-box/protocol/shadowsocks"
 	"github.com/sagernet/sing-box/protocol/trojan"
-	tunneling "github.com/sagernet/sing-box/protocol/tun"
 	"github.com/sagernet/sing-box/protocol/vless"
 	boxjson "github.com/sagernet/sing/common/json"
 	"github.com/sagernet/sing/service"
@@ -190,7 +189,7 @@ func profileConfig(p profile) []byte {
 func coreContext() context.Context {
 	i, o, d := inbound.NewRegistry(), outbound.NewRegistry(), dns.NewTransportRegistry()
 	shadowsocks.RegisterInbound(i) // Used only by the bounded localhost diagnostic.
-	tunneling.RegisterInbound(i)
+	registerPacketInbound(i)
 	direct.RegisterOutbound(o)
 	shadowsocks.RegisterOutbound(o)
 	trojan.RegisterOutbound(o)

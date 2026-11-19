@@ -23,13 +23,27 @@ if (action === 'archive') {
   if (existsSync(archive)) throw Error(`Archive already exists: ${archive}. Choose a new build number.`);
   const info = path.join(root, 'core/artifacts/ios/HafenCore.xcframework/Info.plist');
   const before = existsSync(info) ? readFileSync(info) : null;
+  const hostInfo = path.join(root, 'core/artifacts/ios-host/HafenHost.xcframework/Info.plist');
+  const hostBefore = existsSync(hostInfo) ? readFileSync(hostInfo) : null;
   const core = spawnSync(process.execPath, [path.join(root, 'scripts/core.mjs'), 'ios'], { cwd: root, stdio: 'inherit' });
   if (core.error) throw core.error;
   if (core.status !== 0) process.exit(core.status ?? 1);
-  if (!before?.equals(readFileSync(info))) {
+  const host = spawnSync(process.execPath, [path.join(root, 'scripts/core.mjs'), 'ios-host'], { cwd: root, stdio: 'inherit' });
+  if (host.error) throw host.error;
+  if (host.status !== 0) process.exit(host.status ?? 1);
+  const podsManifest = path.join(root, 'apps/mobile/ios/Pods/Manifest.lock');
+  if (!before?.equals(readFileSync(info)) || !hostBefore?.equals(readFileSync(hostInfo)) ||
+      !existsSync(podsManifest) || !readFileSync(podsManifest, 'utf8').includes('HafenHost')) {
     const pods = spawnSync('bundle', ['exec', 'pod', 'install'], { cwd: path.join(root, 'apps/mobile/ios'), stdio: 'inherit' });
     if (pods.error) throw pods.error;
     if (pods.status !== 0) process.exit(pods.status ?? 1);
+  }
+  // A previous local debug tarball override can remain cached by CocoaPods even
+  // when the environment override has been removed. Do not archive that binary.
+  const hermesSpec = JSON.parse(readFileSync(path.join(root, 'apps/mobile/ios/Pods/Local Podspecs/hermes-engine.podspec.json'), 'utf8'));
+  const phases = [hermesSpec.script_phases].flat().filter(Boolean);
+  if (!phases.some(phase => phase.name?.includes('Replace Hermes'))) {
+    throw Error('Hermes configuration switch missing. Remove HERMES_ENGINE_TARBALL_PATH and run pod update hermes-engine --no-repo-update before archiving.');
   }
   args = [
     '-workspace', 'apps/mobile/ios/Hafen.xcworkspace', '-scheme', 'Hafen',

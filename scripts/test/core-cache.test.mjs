@@ -89,7 +89,9 @@ test('mobile entry points pass a single preview ABI and a stable absolute iOS bu
   const all = run('android-preview', '--arch=all');
   assert.ok(all[1].args.includes('-PreactNativeArchitectures=arm64-v8a,x86_64'));
   assert.ok(run('android')[1].args.includes('--active-arch-only'));
-  const ios = run('ios')[1].args;
+  const iosCommands = run('ios');
+  assert.ok(iosCommands[1].args.includes('ios-host'));
+  const ios = iosCommands[2].args;
   assert.ok(path.isAbsolute(ios[ios.indexOf('--buildFolder') + 1]));
 });
 

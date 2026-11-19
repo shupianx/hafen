@@ -49,6 +49,11 @@ Android 只支持 arm64-v8a / x86_64；日常默认仅构建当前主机架构�
 `--arch=amd64` 或 `--arch=all`，也可用 `HAFEN_CORE_ARCH` 设置默认值。iOS 默认构建设备 arm64
 和当前主机架构的模拟器；`--arch=all` 包含两种模拟器架构。
 Android 输出 `artifacts/android/hafen.aar`，iOS 输出 `artifacts/ios/HafenCore.xcframework`。
+`core:ios` 同时生成主程序专用的 `artifacts/ios-host/HafenHost.xcframework`；也可以用 `core:ios:host` 单独构建。
+宿主库绑定 `host/`，使用 `hafen_host,with_utls,with_quic`，不编译 PacketSession、TUN 或 gVisor。
+订阅处理、四种协议的真实配置构造校验与本机加密自检仍复用 `mobile/`，没有改成仅检查 JSON。
+因此它仍包含出站协议和 Go 运行时，并非只有订阅解析器。完整库继续供 iOS VPN 扩展和 Android 使用。
+两套 iOS 框架只能分别链接到宿主与扩展，不应同时链接到同一个进程。
 原生产物不进版本库；manifest 记录源码、工具版本、构建参数、目标架构及产物 SHA-256。
 先构建内核，再构建 RN 应用；iOS 生成框架后在 `apps/mobile/ios` 执行 `bundle exec pod install`。
 

@@ -56,8 +56,12 @@ func TestTunnelFixture(t *testing.T) {
 		}
 	}()
 	config, _ := json.Marshal(map[string]any{
-		"log":       map[string]any{"level": "debug", "timestamp": true},
-		"inbounds":  []any{map[string]any{"type": "shadowsocks", "tag": "ss", "listen": "127.0.0.1", "listen_port": 29391, "method": "aes-128-gcm", "password": password}},
+		"log": map[string]any{"level": "debug", "timestamp": true},
+		"inbounds": []any{
+			map[string]any{"type": "shadowsocks", "tag": "ss", "listen": "127.0.0.1", "listen_port": 29391, "method": "aes-128-gcm", "password": password},
+			// A distinct endpoint for actual connected-node switching tests.
+			map[string]any{"type": "shadowsocks", "tag": "ss-switch", "listen": "127.0.0.1", "listen_port": 29393, "method": "aes-128-gcm", "password": password},
+		},
 		"outbounds": []any{map[string]any{"type": "direct", "tag": "direct"}},
 		"route": map[string]any{"rules": []any{
 			map[string]any{"ip_cidr": "198.18.0.1/32", "port": 29392, "action": "route", "outbound": "direct", "override_address": "127.0.0.1"},

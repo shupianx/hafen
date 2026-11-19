@@ -11,9 +11,9 @@
     "core:bootstrap": "node scripts/core.mjs bootstrap",
     "core:test": "node scripts/core.mjs test",
     "core:android": "node scripts/core.mjs android",
-    "core:ios": "node scripts/core.mjs ios",
+    "core:ios": "node scripts/core.mjs ios && node scripts/core.mjs ios-host",
     "core:android:all": "node scripts/core.mjs android --arch=all",
-    "core:ios:all": "node scripts/core.mjs ios --arch=all",
+    "core:ios:all": "node scripts/core.mjs ios --arch=all && node scripts/core.mjs ios-host --arch=all",
     "test:build": "node --test scripts/test/*.test.mjs",
     "clean:build": "node scripts/clean-build.mjs",
     "test": "node --experimental-strip-types --test packages/domain/test/*.test.ts",
@@ -28,7 +28,8 @@
     "vpn:smoke": "node scripts/vpn-smoke.mjs",
     "subscription:smoke": "node scripts/subscription-smoke.mjs",
     "ios:archive": "node scripts/ios-testflight.mjs archive",
-    "ios:upload": "node scripts/ios-testflight.mjs upload"
+    "ios:upload": "node scripts/ios-testflight.mjs upload",
+    "core:ios:host": "node scripts/core.mjs ios-host"
   },
   "engines": {
     "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
