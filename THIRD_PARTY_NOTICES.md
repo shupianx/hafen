@@ -1,10 +1,17 @@
 # 第三方声明
 
+订阅卡片的关闭图标来自 Google Material Symbols，应用将其转换为 PNG 并着色。[Close Rounded 原图标](https://icon-sets.iconify.design/material-symbols/close-rounded/) · [Apache 2.0 许可](https://www.apache.org/licenses/LICENSE-2.0)
+
+订阅详情的删除图标由 480 Design 创作，应用将其转换为 PNG 并着色。[Solar 原图标](https://icon-sets.iconify.design/solar/trash-bin-trash-outline/) · [CC BY 4.0 许可](https://creativecommons.org/licenses/by/4.0/)
+
 ## UI 线程动画与手势
 
 - 固定 `react-native-reanimated 4.7.1`、`react-native-worklets 0.13.1`、`react-native-gesture-handler 3.5.0`；npm 官方来源与 integrity 在 package-lock.json。
 - 上游：[Reanimated / Worklets](https://github.com/software-mansion/react-native-reanimated)、[Gesture Handler](https://github.com/software-mansion/react-native-gesture-handler)。未修改上游源码。
 - 保留 MIT 原文：[Reanimated](docs/licenses/react-native-reanimated-LICENSE.txt)、[Worklets](docs/licenses/react-native-worklets-LICENSE.txt)、[Gesture Handler](docs/licenses/react-native-gesture-handler-LICENSE.txt)。
+- 原生模糊使用 [React Native Blur](https://github.com/sbaiahmed1/react-native-blur)，节点拖动使用 [React Native Reorderable List](https://github.com/omahili/react-native-reorderable-list)。[Blur MIT 许可](docs/licenses/react-native-blur-LICENSE.txt)、[Reorderable List MIT 许可](docs/licenses/react-native-reorderable-list-LICENSE.txt)。
+
+测速卡片使用 [Google 和 YouTube 图标](https://github.com/gilbarbara/logos/tree/main/logos)、[GitHub 网站图标](https://github.githubassets.com/favicons/favicon.png)、[Wikipedia 网站图标](https://www.wikipedia.org/static/favicon/wikipedia.ico)、[Claude 网站图标](https://claude.ai/favicon.ico) 和 [ChatGPT 网站图标](https://chatgpt.com/cdn/assets/favicon-48x48.7d42b2e65f.png) 标识测速目标。品牌及标志属于各自权利人。
 
 ## React Native Community Template
 

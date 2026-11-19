@@ -5,12 +5,16 @@
   "license": "GPL-3.0-only",
   "codegenConfig": {
     "name": "HafenPlatformSpec",
-    "type": "modules",
+    "type": "all",
     "jsSrcsDir": "specs",
     "android": {
       "javaPackageName": "com.hafen.platform"
     },
     "ios": {
+      "components": {
+        "HafenKeyboardInset": { "className": "HafenKeyboardInset" },
+        "HafenHomeScrollEdges": { "className": "HafenHomeScrollEdges" }
+      },
       "modulesProvider": {
         "NativeHafenPlatform": "RCTHafenPlatform"
       }
@@ -26,10 +30,12 @@
   },
   "dependencies": {
     "@hafen/domain": "0.1.0",
+    "@sbaiahmed1/react-native-blur": "^6.0.3",
     "react": "19.3.0",
     "react-native": "0.88.1",
     "react-native-gesture-handler": "3.5.0",
     "react-native-reanimated": "4.7.1",
+    "react-native-reorderable-list": "^0.18.3",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-worklets": "0.13.1"
   },
