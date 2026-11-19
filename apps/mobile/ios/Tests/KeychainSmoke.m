@@ -21,11 +21,14 @@
     OSStatus status;
     if([mode isEqualToString:@"write"]) {
       status=HafenSaveTunnelProfile(@"fixture-a",@"subscription-a"); NSCAssert(status==errSecSuccess,@"save failed %d",status);
-      NSCAssert(HafenSaveTunnelProfile(@"fixture-updated",@"subscription-a")==errSecSuccess,@"update failed");
+      NSDictionary *selection=@{@"subscriptionId":@"subscription-a",@"revision":@"revision-b",@"nodeId":@"node-b",@"name":@"Saved B"};
+      NSCAssert(HafenSaveTunnelSelection(@"fixture-updated",@"subscription-a",selection)==errSecSuccess,@"update failed");
+      NSCAssert([HafenReadTunnelRecord(&status)[@"selection"] isEqual:selection],@"selection/profile did not commit together");
       NSCAssert(HafenDeleteTunnelProfileForSubscription(@"subscription-b")==errSecSuccess,@"delete other failed");
       NSCAssert([HafenReadTunnelRecord(&status)[@"profile"] isEqualToString:@"fixture-updated"],@"wrong owner deleted record");
     } else if([mode isEqualToString:@"read-delete"]) {
       NSCAssert([HafenReadTunnelRecord(&status)[@"profile"] isEqualToString:@"fixture-updated"],@"cross-process read failed");
+      NSCAssert([HafenReadTunnelRecord(&status)[@"selection"][@"nodeId"] isEqualToString:@"node-b"],@"cross-process selection missing");
       NSCAssert(HafenDeleteTunnelProfileForSubscription(@"subscription-a")==errSecSuccess,@"delete failed");
     } else {
       NSCAssert(HafenReadTunnelRecord(&status)==nil && status==errSecItemNotFound,@"record survived deletion");

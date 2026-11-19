@@ -38,7 +38,15 @@ export interface CoreInfo {
   protocols: string[];
 }
 
+export interface NodeSelection {
+  subscriptionId: string;
+  revision: string;
+  nodeId: string;
+  name: string;
+}
+
 export interface TunnelState {
+  connectionName?: string | null;
   state: "disconnected" | "connecting" | "connected" | "disconnecting";
   error: PlatformErrorCode | null;
   internetReachable: boolean | null;
@@ -69,6 +77,8 @@ export interface PlatformTransport {
   startVpn(profile: string): Promise<string>;
   stopVpn(): Promise<string>;
   getVpnState(): Promise<string>;
+  getSelectedNode(): Promise<string>;
+  selectSubscriptionNode(id: string, revision: string, nodeId: string): Promise<string>;
   getVpnDiagnostics(): Promise<string>;
   getEnvironment(): Promise<string>;
   prepareVpn(): Promise<boolean>;
@@ -236,6 +246,22 @@ function summary(value: unknown): SubscriptionSummary {
   };
 }
 
+export function parseNodeSelection(json: string): NodeSelection | null {
+  const raw = parse(json);
+  if (raw === null) return null;
+  const value = object(raw);
+  if (typeof value.subscriptionId !== "string" || !uuid.test(value.subscriptionId) ||
+      typeof value.revision !== "string" || !/^[a-f0-9]{64}$/.test(value.revision) ||
+      typeof value.nodeId !== "string" || !/^[a-f0-9]{32}$/.test(value.nodeId) ||
+      !validConnectionName(value.name)) throw new PlatformError("INVALID_NATIVE_RESPONSE");
+  return { subscriptionId: value.subscriptionId, revision: value.revision,
+    nodeId: value.nodeId, name: value.name as string };
+}
+function validConnectionName(value: unknown): value is string {
+  return typeof value === "string" && [...value].length > 0 &&
+    [...value].length <= 128 && !/[\p{Cc}\p{Cf}]/u.test(value);
+}
+
 export function parseTunnelState(json: string): TunnelState {
   const value = object(parse(json));
   if (
@@ -244,10 +270,12 @@ export function parseTunnelState(json: string): TunnelState {
     ) ||
     (value.internetReachable !== null &&
       typeof value.internetReachable !== "boolean") ||
-    (value.error !== null && typeof value.error !== "string")
+    (value.error !== null && typeof value.error !== "string") ||
+    (value.connectionName != null && !validConnectionName(value.connectionName))
   )
     throw new PlatformError("INVALID_NATIVE_RESPONSE");
   return {
+    ...(value.connectionName !== undefined ? { connectionName: value.connectionName as string | null } : {}),
     state: value.state as TunnelState["state"],
     internetReachable: value.internetReachable as boolean | null,
     error:
@@ -360,6 +388,16 @@ export function createPlatformClient(transport: PlatformTransport | null) {
     if (!uuid.test(id)) throw new PlatformError("INVALID_SUBSCRIPTION");
   }
   return {
+    getSelectedNode: () => call(async () => parseNodeSelection(await native().getSelectedNode())),
+    selectSubscriptionNode: (id: string, revision: string, nodeId: string) =>
+      call(async () => {
+        subscriptionID(id);
+        if (!/^[a-f0-9]{64}$/.test(revision) || !/^[a-f0-9]{32}$/.test(nodeId))
+          throw new PlatformError("INVALID_NODE");
+        const selected = parseNodeSelection(await native().selectSubscriptionNode(id, revision, nodeId));
+        if (!selected) throw new PlatformError("INVALID_NATIVE_RESPONSE");
+        return selected;
+      }),
     listSubscriptionNodes: (id: string) =>
       call(async () => {
         subscriptionID(id);

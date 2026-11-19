@@ -197,6 +197,7 @@ class HafenVpnService : VpnService() {
     private var launchRequestId: String? = null
     private var state = "disconnected"
     private var lastError: String? = null
+    private var connectionName: String? = null
     private class Request(var profile: String, val promise: Promise, val cancelled: AtomicBoolean = AtomicBoolean(false), val id: String = java.util.UUID.randomUUID().toString())
     private var pending: Request? = null
     private val stops = mutableListOf<Promise>()
@@ -204,14 +205,16 @@ class HafenVpnService : VpnService() {
     fun snapshot(): String = synchronized(lock) {
       JSONObject().put("state", state).put("error", lastError ?: JSONObject.NULL)
         .put("internetReachable", JSONObject.NULL)
+        .put("connectionName", if (state == "disconnected") JSONObject.NULL else connectionName ?: JSONObject.NULL)
         .put("diagnostics", JSONObject().put("protectedSockets", owner?.protectedSockets?.get() ?: 0)
           .put("failedProtection", owner?.failedProtection?.get() ?: 0)
           .put("packets", owner?.core?.stats()?.let { JSONObject(it) } ?: JSONObject.NULL)).toString()
     }
-    fun start(context: Context, profile: String, promise: Promise) {
+    fun start(context: Context, profile: String, promise: Promise, name: String) {
       synchronized(lock) {
         if (state != "disconnected" || owner != null || launchPending) { promise.reject("OPERATION_IN_PROGRESS", "OPERATION_IN_PROGRESS"); return }
         if (prepare(context) != null) { promise.reject("VPN_PERMISSION_REQUIRED", "VPN_PERMISSION_REQUIRED"); return }
+        connectionName = name
         val request = Request(profile, promise); pending = request; state = "connecting"; lastError = null; launchPending = true; launchRequestId = request.id
         try {
           val intent = Intent(context, HafenVpnService::class.java).setAction(START).putExtra("requestId", request.id)

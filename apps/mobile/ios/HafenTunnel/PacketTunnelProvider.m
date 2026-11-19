@@ -24,6 +24,7 @@
 @property(nonatomic, strong) MobilePacketSession *session;
 @property(nonatomic, strong) nw_path_monitor_t pathMonitor;
 @property(nonatomic) NSUInteger generation;
+@property(nonatomic, copy) NSDictionary *activeSelection;
 @property(nonatomic, copy) void (^pendingStart)(NSError *);
 @end
 
@@ -37,6 +38,7 @@
 }
 - (void)closeSession {
   self.generation += 1;
+  self.activeSelection=nil;
   if (self.pathMonitor) { nw_path_monitor_cancel(self.pathMonitor); self.pathMonitor = nil; }
   MobilePacketSession *session = self.session; self.session = nil;
   [session networkLost];
@@ -47,9 +49,12 @@
   dispatch_async(self.control, ^{
     if (self.session || self.pendingStart) { completionHandler([self failure:@"OPERATION_IN_PROGRESS"]); return; }
     NSString *profile = [options[@"profile"] isKindOfClass:NSString.class] ? (NSString *)options[@"profile"] : nil;
+    NSDictionary *selection=[options[@"selection"] isKindOfClass:NSDictionary.class] ? (NSDictionary *)options[@"selection"] : nil;
     if(!profile) {
       OSStatus status;
-      profile=HafenReadTunnelRecord(&status)[@"profile"];
+      NSDictionary *record=HafenReadTunnelRecord(&status);
+      profile=record[@"profile"];
+      selection=[record[@"selection"] isKindOfClass:NSDictionary.class] ? record[@"selection"] : nil;
       if(status!=errSecSuccess){completionHandler([self failure:status==errSecItemNotFound ? @"VPN_PROFILE_REQUIRED" : @"STORAGE_UNAVAILABLE"]);return;}
     }
     if (!profile || profile.length > 16384) { completionHandler([self failure:@"INVALID_CORE_PROFILE"]); return; }
@@ -63,6 +68,7 @@
       NSString *code=[error.localizedDescription containsString:@"ENDPOINT_DNS_FAILED"] ? @"ENDPOINT_DNS_FAILED" : @"CORE_START_FAILED";
       completionHandler([self failure:code]); return;
     }
+    self.activeSelection=selection;
     self.session = session; self.pendingStart = completionHandler;
     NSUInteger generation = ++self.generation;
     NSDictionary *node = [NSJSONSerialization JSONObjectWithData:[profile dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
@@ -148,6 +154,12 @@
 - (void)handleAppMessage:(NSData *)messageData completionHandler:(void (^)(NSData *))completionHandler {
   dispatch_async(self.control, ^{
     NSString *command = [[NSString alloc] initWithData:messageData encoding:NSUTF8StringEncoding];
+    if ([command isEqualToString:@"selection"]) {
+      // Report the snapshot used to start this session, never the next selection.
+      NSDictionary *value=self.session && self.activeSelection[@"name"] ? @{@"name":self.activeSelection[@"name"]} : @{};
+      if(completionHandler) completionHandler([NSJSONSerialization dataWithJSONObject:value options:0 error:nil]);
+      return;
+    }
     if ([command isEqualToString:@"probe"]) {
       MobilePacketSession *session = self.session;
       // Network I/O must not block packet ingestion, stop, or path monitoring.

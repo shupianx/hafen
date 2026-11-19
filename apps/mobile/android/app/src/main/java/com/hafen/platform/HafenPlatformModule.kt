@@ -48,13 +48,13 @@ class HafenPlatformModule(private val context: ReactApplicationContext) : Native
   override fun getVpnDiagnostics(promise: Promise) { promise.reject("VPN_DIAGNOSTICS_UNAVAILABLE", "VPN_DIAGNOSTICS_UNAVAILABLE") }
   override fun stopVpn(promise: Promise) { vpnRequests.incrementAndGet(); UiThreadUtil.runOnUiThread { HafenVpnService.stop(promise) } }
   override fun startVpn(profile: String, promise: Promise) = startProfile(profile, promise, vpnRequests.incrementAndGet())
-  private fun startProfile(profile: String, promise: Promise, request: Long) {
+  private fun startProfile(profile: String, promise: Promise, request: Long, connectionName: String = "手动节点") {
     UiThreadUtil.runOnUiThread {
       if (vpnRequests.get() != request) {
         promise.reject("TUNNEL_CANCELLED", "TUNNEL_CANCELLED")
       } else if (context.currentActivity == null || context.lifecycleState != com.facebook.react.common.LifecycleState.RESUMED) {
         promise.reject("ACTIVITY_UNAVAILABLE", "ACTIVITY_UNAVAILABLE")
-      } else HafenVpnService.start(context, profile, promise)
+      } else HafenVpnService.start(context, profile, promise, connectionName)
     }
   }
 
@@ -90,10 +90,14 @@ class HafenPlatformModule(private val context: ReactApplicationContext) : Native
     } catch (_: RejectedExecutionException) { promise.reject("NATIVE_UNAVAILABLE", "NATIVE_UNAVAILABLE") }
   }
 
+  override fun getSelectedNode(promise: Promise) = execute(promise) { vault.selected() }
+  override fun selectSubscriptionNode(id: String, revision: String, nodeId: String, promise: Promise) = execute(promise) { vault.select(id, revision, nodeId) }
   override fun listSubscriptions(promise: Promise) = execute(promise) { vault.list() }
   override fun saveSubscription(name: String, sourceUrl: String, promise: Promise) = execute(promise) { vault.save(name, sourceUrl) }
   override fun deleteSubscription(id: String, promise: Promise) = execute(promise) { vault.delete(id); null }
 
+  override fun getNodeOrder(id: String, promise: Promise) = execute(promise) { vault.nodeOrder(id) }
+  override fun setNodeOrder(id: String, order: String, promise: Promise) = execute(promise) { vault.setNodeOrder(id, order); null }
   override fun listSubscriptionNodes(id: String, promise: Promise) = execute(promise) { vault.nodes(id) }
   override fun refreshSubscription(id: String, promise: Promise) = execute(promise) { vault.update(id, null) }
   override fun importSubscription(id: String, content: String, promise: Promise) = execute(promise) { vault.update(id, content) }
@@ -101,7 +105,11 @@ class HafenPlatformModule(private val context: ReactApplicationContext) : Native
     val request = vpnRequests.incrementAndGet()
     try {
       worker.execute {
-        try { startProfile(vault.profile(id, revision, nodeId), promise, request) }
+        try {
+          val profile = vault.profile(id, revision, nodeId)
+          val selection = JSONObject(vault.select(id, revision, nodeId))
+          startProfile(profile, promise, request, selection.getString("name"))
+        }
         catch (error: Exception) {
           val code = error.message?.takeIf { it in SUBSCRIPTION_ERRORS } ?: "STORAGE_UNAVAILABLE"
           promise.reject(code, code)

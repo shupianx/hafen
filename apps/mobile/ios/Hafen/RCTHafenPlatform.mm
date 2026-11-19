@@ -85,7 +85,7 @@
     if(![HafenCoreBridge checkProfile:profile error:&error]) {NSString *code=[self coreError:error];reject(code,code,nil);return;}
     @synchronized(self) {
       if (request != self.vpnRequest) { reject(@"TUNNEL_CANCELLED", @"TUNNEL_CANCELLED", nil); return; }
-      [[HafenTunnelController shared] start:profile subscription:nil completion:^(NSString *value,NSString *code){if(code)reject(code,code,nil);else resolve(value);}];
+      [[HafenTunnelController shared] start:profile subscription:nil selection:@{@"name":@"手动节点"} completion:^(NSString *value,NSString *code){if(code)reject(code,code,nil);else resolve(value);}];
     }
   });
 }
@@ -218,6 +218,21 @@
   return nil;
 }
 
+// Only opaque node IDs are kept in display preferences, keyed by subscription.
+- (void)getNodeOrder:(NSString *)identifier resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+  dispatch_async(self.vaultQueue, ^{
+    resolve([NSUserDefaults.standardUserDefaults stringForKey:[@"nodeOrder." stringByAppendingString:identifier]] ?: @"[]");
+  });
+}
+
+- (void)setNodeOrder:(NSString *)identifier order:(NSString *)order resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+  dispatch_async(self.vaultQueue, ^{
+    if (![self record:identifier reject:reject]) return;
+    [NSUserDefaults.standardUserDefaults setObject:order forKey:[@"nodeOrder." stringByAppendingString:identifier]];
+    resolve(nil);
+  });
+}
+
 - (void)listSubscriptionNodes:(NSString *)identifier resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   dispatch_async(self.vaultQueue, ^{
     NSDictionary *record = [self record:identifier reject:reject]; if (!record) return;
@@ -247,7 +262,7 @@
     if (total > 2000000) { reject(@"SUBSCRIPTION_STORAGE_LIMIT", @"SUBSCRIPTION_STORAGE_LIMIT", nil); return; }
     NSMutableDictionary *query = [self query]; query[(__bridge id)kSecAttrAccount] = identifier;
     OSStatus status = SecItemUpdate((__bridge CFDictionaryRef)query, (__bridge CFDictionaryRef)@{(__bridge id)kSecValueData:data});
-    if (status == errSecSuccess) resolve(summary); else reject(@"STORAGE_UNAVAILABLE", @"STORAGE_UNAVAILABLE", nil);
+    if (status == errSecSuccess && [self reconcileSelection:identifier bundle:bundle summary:summary]) resolve(summary); else reject(@"STORAGE_UNAVAILABLE", @"STORAGE_UNAVAILABLE", nil);
   });
 }
 - (void)refreshSubscription:(NSString *)identifier resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
@@ -256,6 +271,56 @@
 - (void)importSubscription:(NSString *)identifier content:(NSString *)content resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   [self updateSubscription:identifier content:content resolve:resolve reject:reject];
 }
+// The selection and restart profile are one Keychain item: Settings never reads
+// a profile belonging to a different visible selection.
+- (NSDictionary *)selection:(NSString *)identifier bundle:(NSString *)bundle revision:(NSString *)revision node:(NSString *)nodeId {
+  NSString *json=[HafenCoreBridge subscriptionSummary:bundle error:nil];
+  NSDictionary *summary=json ? [NSJSONSerialization JSONObjectWithData:[json dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil] : nil;
+  for(NSDictionary *node in summary[@"nodes"]) if([node[@"id"] isEqualToString:nodeId])
+    return @{@"subscriptionId":identifier,@"revision":revision,@"nodeId":nodeId,@"name":node[@"name"]};
+  return nil;
+}
+- (void)getSelectedNode:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+  dispatch_async(self.vaultQueue, ^{
+    OSStatus status;
+    NSDictionary *record=HafenReadTunnelRecord(&status);
+    if(status!=errSecSuccess && status!=errSecItemNotFound){reject(@"STORAGE_UNAVAILABLE",@"STORAGE_UNAVAILABLE",nil);return;}
+    NSDictionary *selection=record[@"selection"];
+    resolve([selection isKindOfClass:NSDictionary.class] && selection[@"subscriptionId"] ? [self json:selection] : @"null");
+  });
+}
+- (void)selectSubscriptionNode:(NSString *)identifier revision:(NSString *)revision nodeId:(NSString *)nodeId resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
+  dispatch_async(self.vaultQueue, ^{
+    NSDictionary *record=[self record:identifier reject:reject]; if(!record)return;
+    NSString *bundle=record[@"bundle"];
+    if(![bundle isKindOfClass:NSString.class]){reject(@"INVALID_NODE",@"INVALID_NODE",nil);return;}
+    NSError *error=nil;
+    NSString *profile=[HafenCoreBridge subscriptionProfile:bundle revision:revision node:nodeId error:&error];
+    if(!profile){NSString *code=[self subscriptionError:error];reject(code,code,nil);return;}
+    NSDictionary *selection=[self selection:identifier bundle:bundle revision:revision node:nodeId];
+    if(!selection || HafenSaveTunnelSelection(profile,identifier,selection)!=errSecSuccess){reject(@"STORAGE_UNAVAILABLE",@"STORAGE_UNAVAILABLE",nil);return;}
+    resolve([self json:selection]);
+  });
+}
+- (BOOL)reconcileSelection:(NSString *)identifier bundle:(NSString *)bundle summary:(NSString *)json {
+  OSStatus status;
+  NSDictionary *saved=HafenReadTunnelRecord(&status);
+  if(status==errSecItemNotFound)return YES;
+  if(status!=errSecSuccess)return NO;
+  if(![saved[@"subscription"] isEqualToString:identifier])return YES;
+  NSDictionary *selection=saved[@"selection"];
+  if(![selection isKindOfClass:NSDictionary.class] || !selection[@"nodeId"]) {
+    // Old builds did not store identity. Do not guess a node by display name.
+    return HafenDeleteTunnelProfileForSubscription(identifier)==errSecSuccess;
+  }
+  NSDictionary *summary=[NSJSONSerialization JSONObjectWithData:[json dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];
+  NSString *revision=summary[@"revision"];
+  NSDictionary *next=[self selection:identifier bundle:bundle revision:revision node:selection[@"nodeId"]];
+  if(!next)return HafenDeleteTunnelProfileForSubscription(identifier)==errSecSuccess;
+  NSString *profile=[HafenCoreBridge subscriptionProfile:bundle revision:revision node:selection[@"nodeId"] error:nil];
+  return profile && HafenSaveTunnelSelection(profile,identifier,next)==errSecSuccess;
+}
+
 - (void)startSubscriptionNode:(NSString *)identifier revision:(NSString *)revision nodeId:(NSString *)nodeId resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject {
   NSUInteger request; @synchronized(self) { request = ++self.vpnRequest; }
   dispatch_async(self.vaultQueue, ^{
@@ -267,7 +332,7 @@
     if (!profile) {NSString *code=[self subscriptionError:error];reject(code,code,nil);return;}
     @synchronized(self) {
       if (request != self.vpnRequest) { reject(@"TUNNEL_CANCELLED", @"TUNNEL_CANCELLED", nil); return; }
-      [[HafenTunnelController shared] start:profile subscription:identifier completion:^(NSString *value,NSString *code){if(code)reject(code,code,nil);else resolve(value);}];
+      [[HafenTunnelController shared] start:profile subscription:identifier selection:[self selection:identifier bundle:bundle revision:revision node:nodeId] completion:^(NSString *value,NSString *code){if(code)reject(code,code,nil);else resolve(value);}];
     }
   });
 }
@@ -281,7 +346,10 @@
         NSMutableDictionary *query = [self query];
         query[(__bridge id)kSecAttrAccount] = identifier;
         OSStatus status = SecItemDelete((__bridge CFDictionaryRef)query);
-        if (status == errSecSuccess || status == errSecItemNotFound) resolve(nil);
+        if (status == errSecSuccess || status == errSecItemNotFound) {
+          [NSUserDefaults.standardUserDefaults removeObjectForKey:[@"nodeOrder." stringByAppendingString:identifier]];
+          resolve(nil);
+        }
         else reject(@"STORAGE_UNAVAILABLE", @"STORAGE_UNAVAILABLE", nil);
       });
     }];

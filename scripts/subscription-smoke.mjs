@@ -2,21 +2,24 @@
 import WebSocket from "ws";
 import { readFile, writeFile, rm } from "node:fs/promises";
 const action = process.argv[2] || "seed";
-if (!["seed", "verify", "download", "connect", "disconnect"].includes(action))
-  throw Error("Use seed|verify|download|connect|disconnect");
+if (!["seed", "verify", "download", "connect", "disconnect", "selection-seed", "selection-verify"].includes(action))
+  throw Error("Use seed|verify|download|connect|disconnect|selection-seed|selection-verify");
 if (action === "connect" && !process.env.HAFEN_TEST_PROFILE)
   throw Error("Set HAFEN_TEST_PROFILE to the local emulator fixture profile");
 const fixture =
   action === "connect"
     ? await readFile(process.env.HAFEN_TEST_PROFILE, "utf8")
     : null;
+const switchFixture = process.env.HAFEN_TEST_SWITCH === "1";
+if (switchFixture && fixture && JSON.parse(fixture).type !== "shadowsocks")
+  throw Error("The two-endpoint switch fixture requires Shadowsocks");
 const port = Number(process.env.HAFEN_METRO_PORT || 8093);
 const metro = `http://127.0.0.1:${port}`;
 const all = await (await fetch(`${metro}/json/list`)).json();
 const targets = all.filter(
   (t) =>
-    ["com.hafen", "org.reactjs.native.example.Hafen"].includes(t.appId) &&
-    (!process.env.HAFEN_TEST_APP || t.appId === process.env.HAFEN_TEST_APP)
+    process.env.HAFEN_TEST_APP ? t.appId === process.env.HAFEN_TEST_APP :
+      ["com.hafen", "org.reactjs.native.example.Hafen"].includes(t.appId)
 );
 if (!targets.length) throw Error("No Hafen Debug target");
 for (const target of targets) {
@@ -87,7 +90,54 @@ for (const target of targets) {
   const b = `__r(${moduleId}).default`;
   const statePath = `/private/tmp/hafen-subscription-smoke-${target.appId}.json`;
   try {
-    if (["connect", "disconnect"].includes(action)) {
+    if (action === "selection-seed") {
+      const result = await evaluate(`(async()=>{
+        const b=${b};
+        const check=(v,m)=>{if(!v)throw Error(m)};
+        check(await b.getSelectedNode()==='null','Use a fresh isolated app; existing selection must not be overwritten');
+        const a=JSON.parse(await b.saveSubscription('Selection fixture A','https://example.invalid/selection-a/'+Date.now()));
+        const saved=JSON.parse(await b.saveSubscription('Selection fixture B','https://example.invalid/selection-b/'+Date.now()));
+        try {
+          const profile={type:'shadowsocks',tag:'Selected B',server:'192.0.2.1',server_port:443,method:'aes-128-gcm',password:'synthetic-selection-secret'};
+          const content=JSON.stringify({outbounds:[profile]});
+          const first=JSON.parse(await b.importSubscription(a.id,content));
+          await b.selectSubscriptionNode(a.id,first.revision,first.nodes[0].id);
+          const next=JSON.parse(await b.importSubscription(saved.id,content));
+          const selection=JSON.parse(await b.selectSubscriptionNode(saved.id,next.revision,next.nodes[0].id));
+          check(!JSON.stringify(selection).includes('secret') && !JSON.stringify(selection).includes('profile'),'credential escaped');
+          await b.deleteSubscription(a.id);
+          check(JSON.parse(await b.getSelectedNode()).subscriptionId===saved.id,'deleting another subscription cleared selection');
+          await b.listSubscriptionNodes(saved.id);
+          check(JSON.parse(await b.getSelectedNode()).nodeId===selection.nodeId,'browsing cleared selection');
+          const updated=JSON.parse(await b.importSubscription(saved.id,JSON.stringify({outbounds:[profile,{...profile,tag:'Replacement',server:'192.0.2.2'}]})));
+          const current=JSON.parse(await b.getSelectedNode());
+          check(current.nodeId===selection.nodeId && current.revision===updated.revision,'update lost stable node or revision');
+          try {await b.selectSubscriptionNode(saved.id,'0'.repeat(64),selection.nodeId);throw Error('stale accepted')}catch(e){check(e.code==='STALE_SUBSCRIPTION','wrong stale error')}
+          const afterStale=JSON.parse(await b.getSelectedNode());
+          check(Object.keys(current).every(k=>afterStale[k]===current[k]),'stale selection changed saved value');
+          return {id:saved.id,selection:current,selectedBeforeConnect:true,unrelatedDeletePreserved:true,updatePreserved:true,staleRejected:true};
+        } catch(e) {await b.deleteSubscription(a.id);await b.deleteSubscription(saved.id);throw e}
+      })()`);
+      await writeFile(statePath+'.selection',JSON.stringify(result),{mode:0o600});
+      console.log(target.appId,action,JSON.stringify(result));
+    } else if (action === "selection-verify") {
+      const saved=JSON.parse(await readFile(statePath+'.selection','utf8'));
+      const result=await evaluate(`(async()=>{
+        const b=${b},saved=${JSON.stringify(saved)};
+        const check=(v,m)=>{if(!v)throw Error(m)};
+        const current=JSON.parse(await b.getSelectedNode());
+        check(current && Object.keys(saved.selection).every(k=>current[k]===saved.selection[k]),'selection missing after restart');
+        const profile={type:'shadowsocks',tag:'Replacement',server:'192.0.2.2',server_port:443,method:'aes-128-gcm',password:'synthetic-selection-secret'};
+        const next=JSON.parse(await b.importSubscription(saved.id,JSON.stringify({outbounds:[profile]})));
+        check(await b.getSelectedNode()==='null','removed node remained selected');
+        await b.selectSubscriptionNode(saved.id,next.revision,next.nodes[0].id);
+        await b.deleteSubscription(saved.id);
+        check(await b.getSelectedNode()==='null','deleted subscription remained selected');
+        return {persistedAfterRestart:true,removedNodeCleared:true,deletedSubscriptionCleared:true};
+      })()`);
+      await rm(statePath+'.selection');
+      console.log(target.appId,action,JSON.stringify(result));
+    } else if (["connect", "disconnect"].includes(action)) {
       if (target.appId !== "com.hafen") continue;
       const path = statePath + ".vpn";
       if (action === "connect") {
@@ -96,9 +146,10 @@ for (const target of targets) {
           const check=(v,m)=>{if(!v)throw Error(m)};
           const wait=ms=>new Promise(r=>setTimeout(r,ms));
           check(JSON.parse(await b.getVpnState()).state==='disconnected','existing VPN must be stopped first');
+          const previousSelection=JSON.parse(await b.getSelectedNode());
           const record=JSON.parse(await b.saveSubscription('VPN subscription fixture','https://example.invalid/fixture/'+Date.now()));
           try {
-            const outbound={...profile,tag:'Local subscription fixture'};
+            const outbound={...profile,tag:${JSON.stringify(switchFixture ? "Switch A" : "Local subscription fixture")}};
             for(const key of ['server_name','fingerprint','alpn','reality']) delete outbound[key];
             if(profile.type!=='shadowsocks'){
               outbound.tls={enabled:true,server_name:profile.server_name||profile.server};
@@ -106,7 +157,8 @@ for (const target of targets) {
               if(profile.alpn)outbound.tls.alpn=profile.alpn;
               if(profile.reality)outbound.tls.reality={enabled:true,...profile.reality};
             }
-            const nodes=JSON.parse(await b.importSubscription(record.id,JSON.stringify({outbounds:[outbound]})));
+            const outbounds=${switchFixture} ? [outbound,{...outbound,tag:'Switch B',server_port:29393}] : [outbound];
+            const nodes=JSON.parse(await b.importSubscription(record.id,JSON.stringify({outbounds})));
             const args=[record.id,nodes.revision,nodes.nodes[0].id];
             check(await b.prepareVpn(),'permission required');
             const race=await Promise.allSettled([b.startSubscriptionNode(...args),b.stopVpn()]);
@@ -114,8 +166,12 @@ for (const target of targets) {
             check(JSON.parse(await b.getVpnState()).state==='disconnected','cancelled queued start left VPN running');
             const state=JSON.parse(await b.startSubscriptionNode(...args));
             check(state.state==='connected','node connection failed');
-            return {id:record.id,fromStoredNode:true,cancelledStartCleaned:true,state:state.state,race:race.map(r=>({status:r.status,code:r.reason?.code}))};
-          } catch(e) {await b.stopVpn();await b.deleteSubscription(record.id);throw e;}
+            return {id:record.id,previousSelection,fromStoredNode:true,cancelledStartCleaned:true,state:state.state,race:race.map(r=>({status:r.status,code:r.reason?.code}))};
+          } catch(e) {
+            await b.stopVpn();await b.deleteSubscription(record.id);
+            if(previousSelection)await b.selectSubscriptionNode(previousSelection.subscriptionId,previousSelection.revision,previousSelection.nodeId);
+            throw e;
+          }
         })()`);
         await writeFile(path, JSON.stringify(result), { mode: 0o600 });
         console.log(target.appId, action, JSON.stringify(result));
@@ -125,6 +181,8 @@ for (const target of targets) {
           const b=${b};await b.stopVpn();await b.deleteSubscription(${JSON.stringify(
           saved.id
         )});
+          const previous=${JSON.stringify(saved.previousSelection ?? null)};
+          if(previous)await b.selectSubscriptionNode(previous.subscriptionId,previous.revision,previous.nodeId);
           return JSON.parse(await b.getVpnState());
         })()`);
         await rm(path);

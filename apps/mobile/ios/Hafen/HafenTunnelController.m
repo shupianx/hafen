@@ -10,6 +10,7 @@ NSNotificationName const HafenTunnelStateDidChange = @"HafenTunnelStateDidChange
 @interface HafenTunnelController ()
 @property(nonatomic, strong) NETunnelProviderManager *manager;
 @property(nonatomic) BOOL busy;
+@property(nonatomic, copy) NSString *connectionName;
 @property(nonatomic) NSUInteger requestVersion;
 @property(nonatomic) BOOL diagnosing;
 @property(nonatomic,copy) NSString *lastError;
@@ -30,6 +31,7 @@ NSNotificationName const HafenTunnelStateDidChange = @"HafenTunnelStateDidChange
   dispatch_async(dispatch_get_main_queue(), ^{
     if(notification.object!=self.manager.connection) return;
     NEVPNConnection *connection=self.manager.connection;
+    self.connectionName=nil;
     if(connection.status==NEVPNStatusConnecting || connection.status==NEVPNStatusConnected) self.lastError=nil;
     [self publishState];
     if(connection.status==NEVPNStatusDisconnected) {
@@ -67,7 +69,7 @@ NSNotificationName const HafenTunnelStateDidChange = @"HafenTunnelStateDidChange
     case NEVPNStatusDisconnecting: state=@"disconnecting"; break;
     default: break;
   }
-  NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"state":state,@"error":self.lastError ?: NSNull.null,@"internetReachable":NSNull.null} options:0 error:nil];
+  NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"state":state,@"error":self.lastError ?: NSNull.null,@"internetReachable":NSNull.null,@"connectionName":[state isEqualToString:@"disconnected"] ? (id)NSNull.null : (self.connectionName ?: (id)NSNull.null)} options:0 error:nil];
   return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 }
 - (void)load:(void (^)(NSError *))completion {
@@ -108,7 +110,7 @@ NSNotificationName const HafenTunnelStateDidChange = @"HafenTunnelStateDidChange
     }];
   });
 }
-- (void)start:(NSString *)profile subscription:(NSString *)subscription completion:(void (^)(NSString *,NSString *))completion {
+- (void)start:(NSString *)profile subscription:(NSString *)subscription selection:(NSDictionary *)selection completion:(void (^)(NSString *,NSString *))completion {
   dispatch_async(dispatch_get_main_queue(), ^{
     if(![HafenTunnelController available]){completion(nil,@"VPN_UNAVAILABLE");return;}
     if(self.busy){completion(nil,@"OPERATION_IN_PROGRESS");return;}self.busy=YES;
@@ -120,9 +122,9 @@ NSNotificationName const HafenTunnelStateDidChange = @"HafenTunnelStateDidChange
       if(error || !self.manager.isEnabled){self.busy=NO;completion(nil,@"VPN_PERMISSION_REQUIRED");return;}
       NEVPNStatus status=self.manager.connection.status;
       if(status!=NEVPNStatusDisconnected && status!=NEVPNStatusInvalid){self.busy=NO;completion(nil,@"OPERATION_IN_PROGRESS");return;}
-      if(HafenSaveTunnelProfile(profile,subscription)!=errSecSuccess){self.busy=NO;completion(nil,@"STORAGE_UNAVAILABLE");return;}
+      if(HafenSaveTunnelSelection(profile,subscription,selection)!=errSecSuccess){self.busy=NO;completion(nil,@"STORAGE_UNAVAILABLE");return;}
       NSError *startError=nil;
-      BOOL started=[(NETunnelProviderSession *)self.manager.connection startTunnelWithOptions:@{@"profile":profile} andReturnError:&startError];
+      BOOL started=[(NETunnelProviderSession *)self.manager.connection startTunnelWithOptions:@{@"profile":profile,@"selection":selection ?: @{@"name":@"手动节点"}} andReturnError:&startError];
       self.busy=NO;completion(started?[self snapshot]:nil,started?nil:@"TUNNEL_START_FAILED");
     }];
   });
@@ -151,7 +153,20 @@ NSNotificationName const HafenTunnelStateDidChange = @"HafenTunnelStateDidChange
     // Never keep returning a manager cached before the app was suspended.
     if(![HafenTunnelController available] || self.busy){completion([self snapshot]);return;}
     self.busy=YES;
-    [self load:^(NSError *error){self.busy=NO;completion([self snapshot]);}];
+    [self load:^(NSError *error){
+      self.busy=NO;
+      NETunnelProviderSession *session=(NETunnelProviderSession *)self.manager.connection;
+      if(error || session.status!=NEVPNStatusConnected){self.connectionName=nil;completion([self snapshot]);return;}
+      NSDate *connectedDate=session.connectedDate;
+      NSUInteger version=self.requestVersion;
+      [self message:@"selection" session:session timeout:1 completion:^(NSDictionary *result){
+        if(version==self.requestVersion && session==self.manager.connection && session.status==NEVPNStatusConnected && [connectedDate isEqual:session.connectedDate]) {
+          id name=result[@"name"];
+          self.connectionName=[name isKindOfClass:NSString.class] ? name : nil;
+        }
+        completion([self snapshot]);
+      }];
+    }];
   });
 }
 // Completion is main-queue, exactly once, even if the extension exits mid-request.

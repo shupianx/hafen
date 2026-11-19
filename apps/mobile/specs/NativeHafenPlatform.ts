@@ -7,6 +7,10 @@ export interface Spec extends TurboModule {
   startVpn(profile: string): Promise<string>;
   stopVpn(): Promise<string>;
   getVpnState(): Promise<string>;
+  getNodeOrder(id: string): Promise<string>;
+  setNodeOrder(id: string, order: string): Promise<void>;
+  getSelectedNode(): Promise<string>;
+  selectSubscriptionNode(id: string, revision: string, nodeId: string): Promise<string>;
   getVpnDiagnostics(): Promise<string>;
   prepareVpn(): Promise<boolean>;
   listSubscriptions(): Promise<string>;

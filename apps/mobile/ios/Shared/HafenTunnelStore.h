@@ -25,10 +25,10 @@ static inline NSDictionary *HafenReadTunnelRecord(OSStatus *status) {
   if(![record isKindOfClass:NSDictionary.class] || ![record[@"profile"] isKindOfClass:NSString.class] || ![record[@"subscription"] isKindOfClass:NSString.class]){*status=errSecDecode;return nil;}
   return record;
 }
-static inline OSStatus HafenSaveTunnelProfile(NSString *profile,NSString *subscription) {
+static inline OSStatus HafenSaveTunnelSelection(NSString *profile,NSString *subscription,NSDictionary *selection) {
   NSMutableDictionary *query=HafenTunnelQuery();
   if(!query) return errSecMissingEntitlement;
-  NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"profile":profile,@"subscription":subscription ?: @""} options:0 error:nil];
+  NSData *data=[NSJSONSerialization dataWithJSONObject:@{@"profile":profile,@"subscription":subscription ?: @"",@"selection":selection ?: (id)NSNull.null} options:0 error:nil];
   if(!data || data.length>32768) return errSecParam;
   NSDictionary *attributes=@{(__bridge id)kSecValueData:data,
     (__bridge id)kSecAttrGeneric:[(subscription ?: @"") dataUsingEncoding:NSUTF8StringEncoding],
@@ -45,4 +45,9 @@ static inline OSStatus HafenDeleteTunnelProfileForSubscription(NSString *subscri
   query[(__bridge id)kSecAttrGeneric]=[subscription dataUsingEncoding:NSUTF8StringEncoding];
   OSStatus status=SecItemDelete((__bridge CFDictionaryRef)query);
   return status==errSecItemNotFound ? errSecSuccess : status;
+}
+
+// Compatibility for manual profiles and records written by older builds.
+static inline OSStatus HafenSaveTunnelProfile(NSString *profile,NSString *subscription) {
+  return HafenSaveTunnelSelection(profile,subscription,nil);
 }

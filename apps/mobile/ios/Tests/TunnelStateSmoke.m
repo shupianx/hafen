@@ -3,6 +3,7 @@
 
 @interface FakeConnection : NSObject
 @property NEVPNStatus status;
+@property(nonatomic,strong) NSDate *connectedDate;
 @property(nonatomic,strong) NSError *disconnectError;
 @end
 @implementation FakeConnection
@@ -16,8 +17,13 @@
 @interface TestController : HafenTunnelController
 @property(nonatomic,strong) FakeManager *freshManager;
 @property NSUInteger loads;
+@property(nonatomic,copy) NSString *actualName;
 @end
 @implementation TestController
+- (void)message:(NSString *)command session:(NETunnelProviderSession *)session timeout:(NSTimeInterval)timeout completion:(void (^)(NSDictionary *))completion {
+  NSCAssert([command isEqualToString:@"selection"],@"unexpected command");
+  completion(self.actualName ? @{@"name":self.actualName} : @{});
+}
 - (void)load:(void (^)(NSError *))completion {
   self.loads+=1;
   [self setValue:self.freshManager forKey:@"manager"];
@@ -29,9 +35,16 @@ int main(void) { @autoreleasepool {
   TestController *controller=[TestController new];
   FakeManager *manager=[FakeManager new];manager.connection=[FakeConnection new];manager.connection.status=NEVPNStatusConnected;
   controller.freshManager=manager;
+  manager.connection.connectedDate=NSDate.date;
+  controller.actualName=@"Actual A";
   __block NSString *state;
-  void (^receive)(NSString *)=^(NSString *json){state=[NSJSONSerialization JSONObjectWithData:[json dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil][@"state"];};
+  __block id connectionName;
+  void (^receive)(NSString *)=^(NSString *json){NSDictionary *value=[NSJSONSerialization JSONObjectWithData:[json dataUsingEncoding:NSUTF8StringEncoding] options:0 error:nil];state=value[@"state"];connectionName=value[@"connectionName"];};
   [controller state:receive];drain();NSCAssert([state isEqualToString:@"connected"],@"initial state");
+  NSCAssert([connectionName isEqualToString:@"Actual A"],@"system-started node identity missing");
+  controller.actualName=@"Actual B";
+  [controller state:receive];drain();
+  NSCAssert([connectionName isEqualToString:@"Actual B"],@"active identity failed to refresh");
   id observer=[NSNotificationCenter.defaultCenter addObserverForName:HafenTunnelStateDidChange object:controller queue:nil usingBlock:^(NSNotification *notification){receive(notification.userInfo[@"state"]);}];
   manager.connection.status=NEVPNStatusDisconnected;
   [NSNotificationCenter.defaultCenter postNotificationName:NEVPNStatusDidChangeNotification object:manager.connection];drain();
@@ -48,7 +61,7 @@ int main(void) { @autoreleasepool {
   NSCAssert([controller valueForKey:@"lastError"]==nil,@"old error survived reconnect");
   controller.freshManager=nil;
   [controller state:receive];drain();
-  NSCAssert(controller.loads==2 && [state isEqualToString:@"disconnected"],@"foreground refresh reused stale manager");
+  NSCAssert(controller.loads==3 && [state isEqualToString:@"disconnected"],@"foreground refresh reused stale manager");
   [NSNotificationCenter.defaultCenter removeObserver:observer];
   puts("TUNNEL_STATE_SMOKE_PASSED");
 } }

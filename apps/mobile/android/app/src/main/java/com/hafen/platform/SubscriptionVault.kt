@@ -107,6 +107,14 @@ internal class SubscriptionVault(context: Context) {
     throw IllegalArgumentException("INVALID_SUBSCRIPTION")
   }
 
+  fun nodeOrder(id: String): String = record(read(), id).optString("nodeOrder", "[]")
+
+  fun setNodeOrder(id: String, order: String) {
+    val records = read()
+    record(records, id).put("nodeOrder", order)
+    write(records)
+  }
+
   fun nodes(id: String): String {
     val bundle = record(read(), id).optString("bundle", "")
     return if (bundle.isEmpty()) "null" else Mobile.subscriptionSummary(bundle)
@@ -119,8 +127,40 @@ internal class SubscriptionVault(context: Context) {
     val bundle = if (content == null) Mobile.fetchSubscription(record.getString("sourceUrl")) else Mobile.parseSubscription(content)
     val summary = Mobile.subscriptionSummary(bundle)
     record.put("bundle", bundle)
+    record.optJSONObject("selection")?.let { selection ->
+      val parsed = JSONObject(summary)
+      val nodes = parsed.getJSONArray("nodes")
+      val node = (0 until nodes.length()).map { nodes.getJSONObject(it) }
+        .firstOrNull { it.getString("id") == selection.getString("nodeId") }
+      if (node == null) record.remove("selection")
+      else selection.put("revision", parsed.getString("revision")).put("name", node.getString("name"))
+    }
     write(records)
     return summary
+  }
+
+  fun selected(): String {
+    val records = read()
+    for (i in 0 until records.length()) {
+      records.getJSONObject(i).optJSONObject("selection")?.let { return it.toString() }
+    }
+    return "null"
+  }
+
+  fun select(id: String, revision: String, nodeId: String): String {
+    val records = read()
+    val record = record(records, id)
+    val bundle = record.optString("bundle", "")
+    if (bundle.isEmpty()) throw IllegalArgumentException("INVALID_NODE")
+    Mobile.subscriptionProfile(bundle, revision, nodeId) // validates revision and support
+    val nodes = JSONObject(Mobile.subscriptionSummary(bundle)).getJSONArray("nodes")
+    val node = (0 until nodes.length()).map { nodes.getJSONObject(it) }.first { it.getString("id") == nodeId }
+    val selection = JSONObject().put("subscriptionId", id).put("revision", revision)
+      .put("nodeId", nodeId).put("name", node.getString("name"))
+    for (i in 0 until records.length()) records.getJSONObject(i).remove("selection")
+    record.put("selection", selection)
+    write(records)
+    return selection.toString()
   }
 
   fun profile(id: String, revision: String, nodeId: String): String {

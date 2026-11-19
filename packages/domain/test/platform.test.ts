@@ -21,6 +21,8 @@ function bridge(overrides: Partial<PlatformTransport> = {}): PlatformTransport {
         error: null,
         internetReachable: null,
       }),
+    getSelectedNode: async () => "null",
+    selectSubscriptionNode: async () => "null",
     getVpnDiagnostics: async () => "{}",
     startVpn: async () =>
       JSON.stringify({
@@ -345,4 +347,26 @@ test("staged diagnostics preserve safe types and categories", async () => {
   const report = {networkAvailable:true, networkPaused:false, proxyHTTPS:false, proxyError:"DNS", systemHTTPS:false, systemError:"TIMEOUT", includeAllNetworks:true, packetsIn:0, packetsOut:0, packetsInDelta:0, packetsOutDelta:0, endpointDNS:"DNS", endpointTCP:"NOT_RUN", proxyHandshake:"NOT_RUN", targetTLS:"NOT_RUN", errorTrace:"*fmt.wrapError > dns-rcode:3"};
   const client = createPlatformClient(bridge({getVpnDiagnostics: async () => JSON.stringify(report)}));
   assert.deepEqual(await client.getVpnDiagnostics(), report);
+});
+
+test("persisted selection is validated and projected without node credentials", async () => {
+  const selection = { subscriptionId: item.id, revision: 'a'.repeat(64), nodeId: 'b'.repeat(32), name: 'Saved node' };
+  let selected = 'null';
+  const client = createPlatformClient(bridge({
+    getSelectedNode: async () => selected,
+    selectSubscriptionNode: async (id, revision, nodeId) => {
+      assert.deepEqual([id, revision, nodeId], [selection.subscriptionId, selection.revision, selection.nodeId]);
+      selected = JSON.stringify({ ...selection, password: 'secret', profile: 'private' });
+      return selected;
+    },
+    getVpnState: async () => JSON.stringify({ state: 'connected', error: null, internetReachable: null, connectionName: 'Actually running node' }),
+  }));
+  assert.equal(await client.getSelectedNode(), null);
+  assert.deepEqual(await client.selectSubscriptionNode(item.id, selection.revision, selection.nodeId), selection);
+  assert.deepEqual(await client.getSelectedNode(), selection);
+  // The active connection must never be relabelled using the next selection.
+  assert.equal((await client.getVpnState()).connectionName, 'Actually running node');
+  await assert.rejects(() => client.selectSubscriptionNode(item.id, 'invalid', selection.nodeId), { code: 'INVALID_NODE' });
+  selected = JSON.stringify({ ...selection, name: 'bad\nname' });
+  await assert.rejects(() => client.getSelectedNode(), { code: 'INVALID_NATIVE_RESPONSE' });
 });
