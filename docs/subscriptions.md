@@ -20,7 +20,7 @@ Android 已用本机测试节点和用户授权的真实订阅验证系统 VPN �
 | --- | --- |
 | Clash / mihomo YAML | 只读取 `proxies` 内的受限节点；也可读取 proxy-provider 的内联节点文件 |
 | sing-box JSON | 只读取 `outbounds` 内的受限节点 |
-| URI 列表 | SS、Trojan、VLESS、Hysteria2（含 hy2 别名），每行一个；接受整个列表的标准或 URL-safe Base64 |
+| URI 列表 | SS、Trojan、VLESS、AnyTLS、Hysteria2（含 hy2 别名），每行一个；接受整个列表的标准或 URL-safe Base64 |
 | SS 链接 | SIP002 userinfo Base64 / 百分号编码，以及旧式整段 Base64 |
 
 协议子集：
@@ -30,6 +30,7 @@ Android 已用本机测试节点和用户授权的真实订阅验证系统 VPN �
 - VLESS：明确启用 TLS 的 TCP、WS、gRPC；TCP 支持 xtls-rprx-vision 和 Reality（公钥、short ID、SNI、uTLS）。
 - WS：path、自定义 headers、有限 early data；gRPC：service_name，使用上游 lite 实现。
 - Reality 当前限 VLESS TCP；Vision 不与 WS/gRPC 组合。仍不支持 multiplex、明文 VLESS、插件、SS2022、TUIC。
+- AnyTLS 使用密码认证并验证 TLS 证书。分享链接示例为 `anytls://demo%40pass@proxy.example/?sni=tls.example#Demo`，端口默认 443。分享链接支持 `type=tcp`、已支持的 `fp` 指纹和空的 `pcs`。Clash 和 sing-box 格式也支持 ALPN 及现有的 uTLS 指纹。空闲会话使用内核默认值，带自定义会话参数的节点会被跳过。
 - Hysteria2：TLS + QUIC，密码 / userpass、SNI、h3 ALPN、Salamander 混淆、整数 Mbps 带宽（0–10000；省略时采用上游默认拥塞控制）。
 - Hysteria2 端口跳跃：URI 的 `mport`、Clash 的 `ports`、sing-box 的 `server_ports`；最多 16 段，端口 1–65535。可选固定跳跃间隔 5–3600 秒，默认由上游处理。URI 省略端口时使用 443，暂不接受 URI authority 中的多端口写法。
 - Hysteria2 证书固定：URI `pinSHA256`、Clash `fingerprint` 按整个叶证书 SHA-256 校验，并保留系统证书链、域名与有效期验证；不把整证书哈希误映射成 sing-box 的公钥哈希。自签名证书不会仅凭指纹被接受。

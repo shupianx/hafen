@@ -15,7 +15,7 @@ export interface SubscriptionNodes {
   nodes: {
     id: string;
     name: string;
-    type: "shadowsocks" | "trojan" | "vless" | "hysteria2";
+    type: "shadowsocks" | "trojan" | "vless" | "hysteria2" | "anytls";
     blockedReason: "" | "NUMERIC_ENDPOINT_REQUIRED";
   }[];
 }
@@ -108,7 +108,7 @@ export const platformErrorMessages = {
   SUBSCRIPTION_STORAGE_LIMIT:
     "安全存储容量已满，请删除不需要的订阅。旧节点已保留。",
   NO_SUPPORTED_NODES:
-    "没有找到支持的节点。支持 SS AEAD、Trojan/VLESS TLS、WS、gRPC，VLESS Reality/Vision，以及 Hysteria2 的受限参数。未知参数仍会跳过。旧节点已保留。",
+    "没有找到支持的节点。支持 SS AEAD、Trojan/VLESS TLS、WS、gRPC，VLESS Reality/Vision，以及 Hysteria2、AnyTLS 的受限参数。未知参数仍会跳过。旧节点已保留。",
   STALE_SUBSCRIPTION: "订阅已更新，请重新查看节点后连接。",
   INVALID_NODE: "节点不存在，请重新查看订阅。",
   NATIVE_UNAVAILABLE: "当前安装包尚未包含原生模块，请重新构建应用。",
@@ -348,7 +348,7 @@ export function parseSubscriptionNodes(json: string): SubscriptionNodes | null {
       !node.name ||
       [...node.name].length > 128 ||
       /[\p{Cc}\p{Cf}]/u.test(node.name) ||
-      !["shadowsocks", "trojan", "vless", "hysteria2"].includes(
+      !["shadowsocks", "trojan", "vless", "hysteria2", "anytls"].includes(
         String(node.type)
       ) ||
       !["", "NUMERIC_ENDPOINT_REQUIRED"].includes(String(node.blockedReason))

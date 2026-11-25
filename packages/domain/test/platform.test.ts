@@ -309,28 +309,30 @@ test("invalid or stale subscription results do not appear as valid empty updates
   );
 });
 
-test("Hysteria2 metadata is accepted without exposing authentication or pins", async () => {
-  const value = {
-    ...nodeList,
-    nodes: [
-      {
-        ...nodeList.nodes[0],
-        type: "hysteria2",
-        profile: {
-          password: "secret",
-          obfs: { password: "secret" },
-          certificate_sha256: "secret",
+for (const type of ["hysteria2", "anytls"]) {
+  test(`${type} metadata is accepted without exposing credentials`, async () => {
+    const value = {
+      ...nodeList,
+      nodes: [
+        {
+          ...nodeList.nodes[0],
+          type,
+          profile: {
+            password: "secret",
+            obfs: { password: "secret" },
+            certificate_sha256: "secret",
+          },
         },
-      },
-    ],
-  };
-  const client = createPlatformClient(
-    bridge({ listSubscriptionNodes: async () => JSON.stringify(value) })
-  );
-  const result = await client.listSubscriptionNodes(item.id);
-  assert.equal(result?.nodes[0].type, "hysteria2");
-  assert.equal(JSON.stringify(result).includes("secret"), false);
-});
+      ],
+    };
+    const client = createPlatformClient(
+      bridge({ listSubscriptionNodes: async () => JSON.stringify(value) })
+    );
+    const result = await client.listSubscriptionNodes(item.id);
+    assert.equal(result?.nodes[0].type, type);
+    assert.equal(JSON.stringify(result).includes("secret"), false);
+  });
+}
 
 test("diagnostics expose only bounded counters and fixed error codes", async () => {
   const report = { proxyHTTPS: false, proxyError: "TLS", systemHTTPS: false, systemError: "TIMEOUT", includeAllNetworks: true, packetsIn: 10, packetsOut: 4, packetsInDelta: 6, packetsOutDelta: 2 };

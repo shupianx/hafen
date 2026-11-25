@@ -22,6 +22,7 @@ Android Debug / Preview 与 iOS 模拟器 Debug 均编译成功，双端模拟�
 - 节点凭据原生加密存储，JS 只收列表元数据；更新失败保留旧节点，过期版本拒绝连接。
 - 支持域名节点：iOS 在安装 VPN 路由前使用系统 DNS 解析节点；Android 使用受保护的 Cloudflare DoH。应用 DNS 均经代理。
 - 支持 Trojan/VLESS 的 TLS、WS、gRPC，以及 VLESS Reality / Vision；仍采用明确的字段子集。
+- 支持通过分享链接、Clash 或 sing-box 订阅导入 AnyTLS 节点，使用密码认证并校验证书。
 - 支持 Hysteria2，包括 Salamander、带宽参数、端口跳跃和整证书 SHA-256 固定；继续验证系统证书链与域名。
 - 不支持的协议/传输参数会跳过，规则、订阅 DNS、策略组不导入。
 - 未完成 Android 真机、完整 IPv6、长时间运行和正式发行验收。
