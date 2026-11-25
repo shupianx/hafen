@@ -19,7 +19,8 @@ export function validateSubscriptionInput(input: {
     return { ok: false, error: 'INVALID_NAME' };
   }
 
-  const rawUrl = input.sourceUrl.trim();
+  // Discard the entire share fragment before validating the signed request URL.
+  const rawUrl = input.sourceUrl.split('#', 1)[0].trim();
   if (!rawUrl || rawUrl.length > 8192 || /[\s\\]/u.test(rawUrl)) {
     return { ok: false, error: 'INVALID_URL' };
   }
@@ -40,10 +41,6 @@ export function validateSubscriptionInput(input: {
   if (url.username || url.password) {
     return { ok: false, error: 'URL_CREDENTIALS_NOT_ALLOWED' };
   }
-  if (rawUrl.includes('#')) {
-    return { ok: false, error: 'URL_FRAGMENT_NOT_ALLOWED' };
-  }
 
-  // Preserve query tokens and signed URL encoding; do not log this value.
   return { ok: true, value: { name, sourceUrl: rawUrl } };
 }

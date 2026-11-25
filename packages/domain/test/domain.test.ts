@@ -17,6 +17,15 @@ test('preserves signed subscription tokens and trims user input', () => {
   );
 });
 
+test('discards share labels while preserving encoded hashes in signed URLs', () => {
+  const sourceUrl = 'https://example.com:4300/sub?token=a%23b%2Bc';
+  for (const label of ['#Demo%20Network', '#我的 网络#备用', '#\\%ZZ', '#', '#' + 'x'.repeat(8192)]) {
+    assert.deepEqual(validateSubscriptionInput({ name: 'Test', sourceUrl: sourceUrl + label }), {
+      ok: true, value: { name: 'Test', sourceUrl },
+    });
+  }
+});
+
 test('rejects invalid, insecure and ambiguous subscription addresses without echoing secrets', () => {
   const cases = [
     ['http://example.com/?token=private-token', 'HTTPS_REQUIRED'],
@@ -24,8 +33,6 @@ test('rejects invalid, insecure and ambiguous subscription addresses without ech
       'https://user:private-token@example.com/sub',
       'URL_CREDENTIALS_NOT_ALLOWED',
     ],
-    ['https://example.com/sub#private-token', 'URL_FRAGMENT_NOT_ALLOWED'],
-    ['https://example.com/sub#', 'URL_FRAGMENT_NOT_ALLOWED'],
     ['https:example.com', 'INVALID_URL'],
     ['https://example.com/\nprivate-token', 'INVALID_URL'],
     ['https://example.com\\private-token', 'INVALID_URL'],
