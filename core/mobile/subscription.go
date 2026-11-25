@@ -294,6 +294,12 @@ func mapNode(m map[string]any, format string) (profile, string, bool) {
 		nameKey, portKey = "tag", "server_port"
 		keys = "tag type server server_port password method uuid tls flow transport"
 	}
+	if stringField(m, "type") == "anytls" {
+		keys = "name type server port password sni tls udp skip-cert-verify client-fingerprint alpn"
+		if format == "sing-box" {
+			keys = "tag type server server_port password tls"
+		}
+	}
 	if !allowed(m, keys) {
 		return p, "", false
 	}
@@ -553,7 +559,7 @@ func parseNodeURI(raw string) map[string]any {
 		return nil
 	}
 	port, e := strconv.Atoi(u.Port())
-	if u.Port() == "" && (u.Scheme == "hysteria2" || u.Scheme == "hy2") {
+	if u.Port() == "" && (u.Scheme == "hysteria2" || u.Scheme == "hy2" || u.Scheme == "anytls" && !strings.HasSuffix(u.Host, ":")) {
 		port, e = 443, nil
 	}
 	if e != nil {
@@ -568,6 +574,36 @@ func parseNodeURI(raw string) map[string]any {
 		m["name"] = u.Fragment
 	}
 	switch u.Scheme {
+	case "anytls":
+		if _, hasPassword := u.User.Password(); hasPassword || !utf8.ValidString(u.User.Username()) {
+			return nil
+		}
+		m["password"] = u.User.Username()
+		for key, values := range q {
+			if len(values) != 1 {
+				return nil
+			}
+			switch key {
+			case "sni":
+				m["sni"] = values[0]
+			case "fp":
+				m["client-fingerprint"] = values[0]
+			case "type":
+				if values[0] != "tcp" {
+					return nil
+				}
+			case "pcs":
+				if values[0] != "" {
+					return nil
+				}
+			case "insecure":
+				if values[0] != "0" {
+					return nil
+				}
+			default:
+				return nil
+			}
+		}
 	case "hysteria2", "hy2":
 		return parseHysteria2URI(u, q, m)
 	case "ss":

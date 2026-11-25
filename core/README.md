@@ -16,7 +16,7 @@
   只访问 127.0.0.1，使用随机凭据，不读取用户订阅。不能替代 VPN、UDP、DNS 或公网验收。
 
 首批配置适配只开放 Shadowsocks AEAD（aes-128-gcm / aes-256-gcm / chacha20-ietf-poly1305）、
-Trojan/VLESS over TLS、WebSocket、gRPC（上游 lite 实现），VLESS Reality / Vision，
+Trojan/VLESS over TLS、WebSocket、gRPC（上游 lite 实现），VLESS Reality / Vision、AnyTLS（密码认证和 TLS），
 以及 Hysteria2（Salamander、带宽、端口跳跃、整证书 SHA-256 固定）；Shadowsocks 暂不支持插件与 2022。
 这只是 Hafen 的接入子集，不代表 sing-box 本身缺少这些能力。未知协议/字段明确报错。
 TLS 证书验证不能关闭；不接受订阅自定义监听地址、控制接口、本地文件或可执行内容。

@@ -71,6 +71,9 @@ func validateOptions(p profile) bool {
 	if p.Type == "shadowsocks" {
 		return p.Transport == nil && p.Reality == nil && p.Fingerprint == "" && len(p.ALPN) == 0 && p.Flow == ""
 	}
+	if p.Type == "anytls" && p.Transport != nil {
+		return false
+	}
 	if p.Flow != "" && (p.Type != "vless" || p.Flow != "xtls-rprx-vision" || p.Transport != nil) {
 		return false
 	}

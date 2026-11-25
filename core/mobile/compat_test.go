@@ -27,6 +27,7 @@ import (
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/inbound"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/anytls"
 	"github.com/sagernet/sing-box/protocol/hysteria2"
 	"github.com/sagernet/sing-box/protocol/trojan"
 	"github.com/sagernet/sing-box/protocol/vless"
@@ -44,6 +45,7 @@ func testInstance(t *testing.T, config map[string]any) *box.Box {
 	r := service.FromContext[adapter.InboundRegistry](ctx).(*inbound.Registry)
 	trojan.RegisterInbound(r)
 	hysteria2.RegisterInbound(r)
+	anytls.RegisterInbound(r)
 	vless.RegisterInbound(r)
 	data, _ := json.Marshal(config)
 	opts, e := boxjson.UnmarshalExtendedContext[option.Options](ctx, data)

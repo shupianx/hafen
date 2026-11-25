@@ -23,6 +23,7 @@ import (
 	"github.com/sagernet/sing-box/dns/transport/hosts"
 	"github.com/sagernet/sing-box/dns/transport/local"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/anytls"
 	"github.com/sagernet/sing-box/protocol/direct"
 	"github.com/sagernet/sing-box/protocol/shadowsocks"
 	"github.com/sagernet/sing-box/protocol/trojan"
@@ -48,7 +49,7 @@ func Info() string {
 	value, _ := json.Marshal(map[string]any{
 		"name": "sing-box", "version": version, "bindingVersion": 1,
 		"ready": version == pinnedVersion, "tunnelAvailable": false,
-		"protocols": []string{"shadowsocks", "trojan", "vless", "hysteria2"},
+		"protocols": []string{"shadowsocks", "trojan", "vless", "hysteria2", "anytls"},
 	})
 	return string(value)
 }
@@ -106,7 +107,7 @@ func parseProfile(content string) (profile, error) {
 		default:
 			return p, errProfile
 		}
-	case "trojan", "hysteria2":
+	case "trojan", "hysteria2", "anytls":
 		if p.Password == "" || p.Method != "" || p.UUID != "" {
 			return p, errProfile
 		}
@@ -169,10 +170,10 @@ func profileConfig(p profile) []byte {
 			serverName = p.Server
 		}
 		proxy["tls"] = map[string]any{"enabled": true, "server_name": serverName, "insecure": false}
-		if p.Type == "trojan" || p.Type == "hysteria2" {
-			proxy["password"] = p.Password
-		} else {
+		if p.Type == "vless" {
 			proxy["uuid"] = p.UUID
+		} else {
+			proxy["password"] = p.Password
 		}
 	}
 	applyOptions(p, proxy)
@@ -194,6 +195,7 @@ func coreContext() context.Context {
 	shadowsocks.RegisterOutbound(o)
 	trojan.RegisterOutbound(o)
 	vless.RegisterOutbound(o)
+	anytls.RegisterOutbound(o)
 	registerHysteria2(o)
 	local.RegisterTransport(d)
 	hosts.RegisterTransport(d)

@@ -13,6 +13,7 @@ func TestHostServices(t *testing.T) {
 		`{"type":"shadowsocks","server":"127.0.0.1","server_port":443,"method":"aes-128-gcm","password":"fixture-only"}`,
 		`{"type":"trojan","server":"proxy.example","server_port":443,"password":"fixture-only"}`,
 		`{"type":"vless","server":"proxy.example","server_port":443,"uuid":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","flow":"xtls-rprx-vision","fingerprint":"chrome"}`,
+		`{"type":"anytls","server":"proxy.example","server_port":443,"password":"fixture-only"}`,
 		`{"type":"hysteria2","server":"proxy.example","server_port":443,"password":"fixture-only","obfs":{"type":"salamander","password":"fixture-only"}}`,
 	}
 	for _, profile := range profiles {
@@ -27,6 +28,7 @@ func TestHostServices(t *testing.T) {
  {"type":"shadowsocks","tag":"SS","server":"127.0.0.1","server_port":443,"method":"aes-128-gcm","password":"fixture-only"},
  {"type":"trojan","tag":"Trojan","server":"proxy.example","server_port":443,"password":"fixture-only","tls":{"enabled":true}},
  {"type":"vless","tag":"VLESS","server":"proxy.example","server_port":443,"uuid":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","flow":"xtls-rprx-vision","tls":{"enabled":true,"utls":{"enabled":true,"fingerprint":"chrome"}}},
+ {"type":"anytls","tag":"AnyTLS","server":"proxy.example","server_port":443,"password":"fixture-only","tls":{"enabled":true}},
  {"type":"hysteria2","tag":"HY2","server":"proxy.example","server_port":443,"password":"fixture-only","tls":{"enabled":true},"obfs":{"type":"salamander","password":"fixture-only"}}
 ]}`
 	bundle, err := ParseSubscription(content)

@@ -76,7 +76,7 @@ func TestPacketTCPUDPAndProtection(t *testing.T) {
 		mode  string
 		allow bool
 		ipv6  bool
-	}{{"direct", true, false}, {"direct", false, false}, {"hysteria2", true, false}, {"hysteria2", false, false}, {"vless", true, false}, {"vless", false, false}, {"vless-ws", true, false}, {"direct", true, true}, {"hysteria2", true, true}, {"vless", true, true}, {"vless-ws", true, true}} {
+	}{{"direct", true, false}, {"direct", false, false}, {"hysteria2", true, false}, {"hysteria2", false, false}, {"anytls", true, false}, {"anytls", true, true}, {"anytls", false, false}, {"vless", true, false}, {"vless", false, false}, {"vless-ws", true, false}, {"direct", true, true}, {"hysteria2", true, true}, {"vless", true, true}, {"vless-ws", true, true}} {
 		allow, mode := tc.allow, tc.mode
 		t.Run(mode+"/"+map[bool]string{true: "ipv6", false: "ipv4"}[tc.ipv6]+"/"+map[bool]string{true: "forward", false: "protect-failure"}[allow], func(t *testing.T) {
 			origin, err := net.Listen("tcp4", "127.0.0.1:0")
@@ -125,11 +125,19 @@ func TestPacketTCPUDPAndProtection(t *testing.T) {
 				config["outbounds"].([]any)[0].(map[string]any)["tls"].(map[string]any)["certificate"] = []string{cert}
 			}
 
-			if mode == "vless" || mode == "vless-ws" {
+			if mode == "vless" || mode == "vless-ws" || mode == "anytls" {
 				cert, key, _ := testCertificate(t)
 				port := testPort(t)
-				p := profile{Type: "vless", Server: "127.0.0.1", ServerPort: uint16(port), ServerName: "proxy.test", UUID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}
-				inbound := map[string]any{"type": "vless", "tag": "vless", "listen": "127.0.0.1", "listen_port": port, "users": []any{map[string]any{"uuid": p.UUID}}, "tls": map[string]any{"enabled": true, "certificate": []string{cert}, "key": []string{key}}}
+				p := profile{Server: "127.0.0.1", ServerPort: uint16(port), ServerName: "proxy.test"}
+				var user map[string]any
+				if mode == "anytls" {
+					p.Type, p.Password = "anytls", "packet-test"
+					user = map[string]any{"name": "fixture", "password": p.Password}
+				} else {
+					p.Type, p.UUID = "vless", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+					user = map[string]any{"uuid": p.UUID}
+				}
+				inbound := map[string]any{"type": p.Type, "tag": p.Type, "listen": "127.0.0.1", "listen_port": port, "users": []any{user}, "tls": map[string]any{"enabled": true, "certificate": []string{cert}, "key": []string{key}}}
 				if mode == "vless-ws" {
 					p.Transport = &profileTransport{Type: "ws", Path: "/tunnel"}
 					inbound["transport"] = p.Transport

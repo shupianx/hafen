@@ -73,3 +73,7 @@ Go 传递依赖固定在 `core/go.sum`，各依赖保持自身许可证。这里
 - `core/mobile/hysteria2_outbound.go` 改编自 sing-box v1.14.4 `protocol/hysteria2/outbound.go`，保留上游版权与 GPL-3.0-or-later 声明。
   修改：只对带整证书 SHA-256 指纹的受限配置增加公开 TLS VerifyPeerCertificate 回调；保持正常证书验证、受保护拨号、上游 QUIC 收发与生命周期清理。无指纹节点仍使用上游 outbound。
 - 未修改模块缓存中的上游源码；未自行实现 Hysteria2 或 QUIC 协议。
+
+## AnyTLS
+
+- 使用 sing-box 固定的 [sing-anytls v0.0.11](https://github.com/anytls/sing-anytls/tree/v0.0.11)。上游采用 GPL-3.0-or-later，见[原始许可声明](docs/licenses/sing-anytls-LICENSE.txt)。

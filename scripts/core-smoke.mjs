@@ -95,6 +95,7 @@ for (const target of targets) {
     {...vless,flow:'xtls-rprx-vision'},
     {...vless,flow:'xtls-rprx-vision',fingerprint:'chrome',reality:{public_key:'CQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',short_id:'abcd'}},
   ])await b.checkCoreProfile(JSON.stringify(profile));
+  await b.checkCoreProfile(JSON.stringify({type:'anytls',server:'example.com',server_port:443,password:'test-only'}));
   await b.checkCoreProfile(JSON.stringify({type:'hysteria2',server:'example.com',server_port:443,password:'test-only',obfs:{type:'salamander',password:'test-obfs'},up_mbps:10,down_mbps:20}));
   const results=[];
   for(let i=0;i<3;i++){const r=JSON.parse(await b.runCoreSelfTest());if(r.ok!==true || r.vpnConnected!==false)throw Error('bad self test');results.push(r);}
