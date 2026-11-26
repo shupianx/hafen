@@ -11,7 +11,7 @@
 - 保留 MIT 原文：[Reanimated](docs/licenses/react-native-reanimated-LICENSE.txt)、[Worklets](docs/licenses/react-native-worklets-LICENSE.txt)、[Gesture Handler](docs/licenses/react-native-gesture-handler-LICENSE.txt)。
 - 原生模糊使用 [React Native Blur](https://github.com/sbaiahmed1/react-native-blur)，节点拖动使用 [React Native Reorderable List](https://github.com/omahili/react-native-reorderable-list)。[Blur MIT 许可](docs/licenses/react-native-blur-LICENSE.txt)、[Reorderable List MIT 许可](docs/licenses/react-native-reorderable-list-LICENSE.txt)。
 
-测速卡片使用 [Google 和 YouTube 图标](https://github.com/gilbarbara/logos/tree/main/logos)、[GitHub 网站图标](https://github.githubassets.com/favicons/favicon.png)、[Wikipedia 网站图标](https://www.wikipedia.org/static/favicon/wikipedia.ico)、[Claude 网站图标](https://claude.ai/favicon.ico) 和 [ChatGPT 网站图标](https://chatgpt.com/cdn/assets/favicon-48x48.7d42b2e65f.png) 标识测速目标。品牌及标志属于各自权利人。
+测速卡片使用 [Google 和 YouTube 图标](https://github.com/gilbarbara/logos/tree/main/logos)、[GitHub 网站图标](https://github.githubassets.com/favicons/favicon.png)、[X 网站图标](https://abs.twimg.com/favicons/twitter.3.ico)、[Claude 网站图标](https://claude.ai/favicon.ico) 和 [ChatGPT 网站图标](https://chatgpt.com/cdn/assets/favicon-48x48.7d42b2e65f.png) 标识测速目标。品牌及标志属于各自权利人。
 
 ## React Native Community Template
 

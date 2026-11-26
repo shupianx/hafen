@@ -32,9 +32,9 @@ const sites = [
     icon: require('./assets/youtube.png'),
   },
   {
-    name: 'Wikipedia',
-    url: 'https://www.wikipedia.org/',
-    icon: require('./assets/wikipedia.png'),
+    name: 'X',
+    url: 'https://x.com/robots.txt',
+    icon: require('./assets/x.png'),
   },
   {
     name: 'Claude',
@@ -59,7 +59,7 @@ export function WebsiteLatency({
   const [readings, setReadings] = useState<Record<string, Reading>>({});
   const { fontScale } = useWindowDimensions();
   const [gridWidth, setGridWidth] = useState(0);
-  // Reserve space for the longest name (Wikipedia), its icon and the tile insets.
+  // Reserve space for the longest site name, its icon and the tile insets.
   const cellWidthNeeded =
     2 * (cellPadding + tilePadding) +
     iconSize +
