@@ -33,6 +33,7 @@ export function usePlatform() {
   const restored = useRef(false);
   const selectedId = selection?.subscriptionId === openedId && nodes?.nodes.some(node => node.id === selection.nodeId) ? selection.nodeId : null;
   const [busy, setBusy] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [switching, setSwitching] = useState(false);
   const selectionRequest = useRef(0);
   const selectionInProgress = useRef(false);
@@ -138,15 +139,18 @@ export function usePlatform() {
     };
   }, [refresh, applyTunnel]);
 
-  function save(name: string, url: string) {
-    return run(async () => {
+  async function save(name: string, url: string) {
+    let newId: string | undefined;
+    const saved = await run(async () => {
       const record = await client.saveSubscription(name, url);
       if (!alive.current) return;
       setSubscriptions(current => [record, ...current]);
       setOpenedId(record.id);
       setNodes(null);
-      setNotice('已添加订阅');
+      newId = record.id;
     });
+    if (saved && newId) updateSubscription(newId);
+    return saved;
   }
 
   function remove(id: string) {
@@ -171,20 +175,19 @@ export function usePlatform() {
       setNodes(result);
     });
   }
-  function updateSubscription(id: string, content?: string) {
+  function updateSubscription(id: string) {
     return run(async () => {
-      const result =
-        content === undefined
-          ? await client.refreshSubscription(id)
-          : await client.importSubscription(id, content);
-      const nextSelection = await client.getSelectedNode();
-      if (!alive.current) return;
-      setOpenedId(id);
-      setNodes(result);
-      setSelection(nextSelection);
-      setNotice(
-        `已保存 ${result.nodes.length} 个节点，跳过 ${result.skipped} 个不支持或重复的条目。仅导入节点，不应用订阅中的规则、DNS 或策略组。`,
-      );
+      setRefreshingId(id);
+      try {
+        const result = await client.refreshSubscription(id);
+        const nextSelection = await client.getSelectedNode();
+        if (!alive.current) return;
+        setOpenedId(id);
+        setNodes(result);
+        setSelection(nextSelection);
+      } finally {
+        if (alive.current) setRefreshingId(null);
+      }
     });
   }
   function selectNode(nodeId: string) {
@@ -310,6 +313,7 @@ export function usePlatform() {
     selectNode,
     openSubscription,
     updateSubscription,
+    refreshingId,
     connectSelected,
     tunnel,
     tunnelError: tunnel.error ? platformErrorMessages[tunnel.error] : '',

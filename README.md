@@ -18,7 +18,7 @@ Android Debug / Preview 与 iOS 模拟器 Debug 均编译成功，双端模拟�
 - iOS：宿主管理和独立 Packet Tunnel Extension；公开 packetFlow 接入，TestFlight 构建 8 用户确认可连接。
 - sing-box 1.14.4：固定源码校验值和构建工具，提供真实配置校验与本机加密 TCP 自检。
 - 手动连接入口暂限 Shadowsocks / aes-128-gcm、域名或 IP；节点参数仅用于本次连接。
-- 支持 HTTPS 下载和粘贴导入 Clash YAML、sing-box JSON、URI / Base64 节点列表的受限子集。
+- 添加 HTTPS 订阅时自动下载节点，详情列表支持下拉刷新。订阅格式支持 Clash YAML、sing-box JSON、URI / Base64 节点列表的受限子集。
 - 节点凭据原生加密存储，JS 只收列表元数据；更新失败保留旧节点，过期版本拒绝连接。
 - 支持域名节点：iOS 在安装 VPN 路由前使用系统 DNS 解析节点；Android 使用受保护的 Cloudflare DoH。应用 DNS 均经代理。
 - 支持 Trojan/VLESS 的 TLS、WS、gRPC，以及 VLESS Reality / Vision；仍采用明确的字段子集。

@@ -42,7 +42,7 @@ type Props = {
   visible: boolean;
   busy: boolean;
   error: string;
-  onClose: () => void;
+  onClose: (saved: boolean) => void;
   onSave: (name: string, url: string) => Promise<boolean>;
 };
 
@@ -102,7 +102,7 @@ export function AddSubscriptionSheet({
     const hide = () => {
       cancelKeyboardWait.current?.();
       presented.current = false;
-      onClose();
+      onClose(saved.current);
       if (saved.current) {
         setName(defaultSubscriptionName);
         setUrl('');

@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
-  Keyboard,
   Modal,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -115,8 +114,6 @@ export function SubscriptionPanel({
   const insets = useSafeAreaInsets();
   const rest = Math.round(height * 0.34);
   const [expanded, setExpanded] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [content, setContent] = useState('');
   const [order, setOrder] = useState<string[]>([]);
   const [orderReady, setOrderReady] = useState(false);
   const [orderError, setOrderError] = useState('');
@@ -135,6 +132,7 @@ export function SubscriptionPanel({
     [nodes, order],
   );
   const busy = platform.busy || !current || !orderReady || savingOrder;
+  const refreshing = platform.refreshingId === id;
   const transitioning =
     platform.tunnel.state === 'connecting' ||
     platform.tunnel.state === 'disconnecting';
@@ -157,6 +155,10 @@ export function SubscriptionPanel({
       mounted = false;
     };
   }, [id]);
+
+  function refreshNodes() {
+    if (!busy && !saving.current) platform.updateSubscription(id);
+  }
 
   async function move(from: number, to: number) {
     if (
@@ -195,7 +197,6 @@ export function SubscriptionPanel({
   const close = useCallback(() => {
     if (closing.value) return;
     closing.value = true;
-    Keyboard.dismiss();
     top.value = withTiming(height, { duration: 185 }, done => {
       if (done) scheduleOnRN(onClose);
     });
@@ -350,89 +351,57 @@ export function SubscriptionPanel({
               panActivateAfterLongPress={370}
               dragEnabled={!busy}
               onScroll={onListScroll}
-              keyboardShouldPersistTaps="handled"
-              automaticallyAdjustKeyboardInsets
+              refreshing={data.length > 0 && refreshing}
+              onRefresh={data.length ? refreshNodes : undefined}
+              alwaysBounceVertical
               contentContainerStyle={[
                 styles.content,
-                !expanded && { minHeight: height },
+                !expanded && data.length > 0 && { minHeight: height },
                 { paddingBottom: insets.bottom + 24 },
               ]}
               onReorder={({ from, to }) => move(from, to)}
               ListHeaderComponent={
                 <View style={styles.controls}>
-                  <View style={styles.actions}>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={platform.busy}
-                      style={styles.button}
-                      onPress={() => platform.updateSubscription(id)}
-                    >
-                      <Text style={styles.link}>
-                        {platform.busy ? '处理中…' : '更新节点'}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={platform.busy}
-                      style={styles.button}
-                      onPress={() => {
-                        setShowImport(!showImport);
-                        setContent('');
-                        if (!showImport) setExpanded(true);
-                      }}
-                    >
-                      <Text style={styles.link}>
-                        {showImport ? '取消粘贴' : '粘贴配置'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  {showImport && (
-                    <View style={styles.importBox}>
-                      <TextInput
-                        accessibilityLabel="订阅配置内容"
-                        multiline
-                        value={content}
-                        onChangeText={setContent}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        maxLength={524288}
-                        editable={!platform.busy}
-                        placeholder="粘贴 YAML、JSON 或节点链接"
-                        placeholderTextColor={color.muted}
-                        style={styles.input}
-                      />
-                      <Pressable
-                        accessibilityRole="button"
-                        disabled={platform.busy || !content.trim()}
-                        style={styles.button}
-                        onPress={async () => {
-                          if (await platform.updateSubscription(id, content)) {
-                            Keyboard.dismiss();
-                            setContent('');
-                            setShowImport(false);
-                          }
-                        }}
-                      >
-                        <Text style={styles.link}>导入</Text>
-                      </Pressable>
-                    </View>
-                  )}
                   {!!feedback && (
                     <Text accessibilityLiveRegion="polite" style={styles.error}>
                       {feedback}
                     </Text>
                   )}
-                  <Text style={styles.caption}>
-                    {nodes
-                      ? `${data.length} 个节点${
-                          nodes.skipped
-                            ? ' · 跳过 ' + nodes.skipped + ' 项'
-                            : ''
-                        }`
-                      : platform.busy
-                      ? '正在读取节点…'
-                      : '更新订阅或粘贴配置以获取节点'}
-                  </Text>
+                  {!!nodes && (
+                    <Text style={styles.caption}>
+                      {data.length} 个节点
+                      {nodes.skipped ? ' · 跳过 ' + nodes.skipped + ' 项' : ''}
+                    </Text>
+                  )}
+                </View>
+              }
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  {refreshing || !current || platform.busy ? (
+                    <ActivityIndicator
+                      accessibilityLabel="正在读取节点"
+                      color={color.muted}
+                    />
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="刷新节点"
+                      disabled={busy}
+                      onPress={refreshNodes}
+                      style={({ pressed }) => [
+                        styles.refreshButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        accessible={false}
+                        allowFontScaling={false}
+                        style={styles.refreshGlyph}
+                      >
+                        ↻
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
               }
               renderItem={({ item, index }) => (
@@ -496,18 +465,23 @@ const styles = StyleSheet.create({
   },
   deleteIcon: { width: 22, height: 22, tintColor: color.danger },
   list: { flex: 1 },
-  content: { paddingHorizontal: 20 },
+  content: { flexGrow: 1, paddingHorizontal: 20 },
   controls: { gap: 12 },
-  actions: { flexDirection: 'row', gap: 8 },
-  button: {
-    minHeight: 44,
-    backgroundColor: '#EAEAEA',
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    justifyContent: 'center',
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  refreshButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: color.field,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  link: { color: color.accent, fontSize: 14, fontWeight: '600' },
+  refreshGlyph: {
+    color: color.accent,
+    fontSize: 27,
+    includeFontPadding: false,
+  },
+  pressed: { opacity: 0.6 },
   caption: { color: color.muted, marginTop: 4, marginBottom: 10, fontSize: 13 },
   node: {
     flexDirection: 'row',
@@ -534,15 +508,5 @@ const styles = StyleSheet.create({
   nodeName: { color: color.ink, fontSize: 16, fontWeight: '600' },
   body: { color: color.muted, fontSize: 13 },
   grip: { color: color.muted, fontSize: 21 },
-  importBox: { gap: 6 },
-  input: {
-    minHeight: 100,
-    maxHeight: 175,
-    borderRadius: 14,
-    backgroundColor: color.field,
-    color: color.ink,
-    padding: 14,
-    textAlignVertical: 'top',
-  },
   error: { color: color.danger, fontSize: 13 },
 });

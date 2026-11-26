@@ -77,9 +77,9 @@ function Home() {
     (!active && (disabled || !platform.environment?.vpnAvailable));
   const feedback = platform.error || platform.tunnelError;
   const clearFeedback = platform.clearFeedback;
-  const closeSheet = useCallback(() => {
+  const closeSheet = useCallback((saved: boolean) => {
     setAdding(false);
-    clearFeedback();
+    if (!saved) clearFeedback();
   }, [clearFeedback]);
 
   function openSheet() {
